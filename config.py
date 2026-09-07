@@ -259,6 +259,38 @@ div:has(> iframe[height="0"]) {
     50% { content: '..'; }
     75% { content: '...'; }
 }
+
+/* ==========================================================================
+   OPTIMIZACIONES MOBILE RESPONSIVE (SMARTPHONES Y PANTALLAS ESTRECHAS < 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1.5rem !important;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+    }
+    [data-testid="column"] {
+        padding: 12px 10px !important;
+        margin-bottom: 8px !important;
+        border-radius: 10px !important;
+    }
+    button,
+    button[kind="primary"],
+    [data-testid="baseButton-secondary"],
+    [data-testid="baseButton-primary"] {
+        min-height: 44px !important; /* Touch target ergonómico para pulgares */
+        font-size: 0.95rem !important;
+    }
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > div,
+    .stNumberInput input {
+        font-size: 16px !important; /* Previene auto-zoom molesto en iOS Safari */
+    }
+    .section-title {
+        font-size: 1.25rem !important;
+    }
+}
 </style>
 """
 

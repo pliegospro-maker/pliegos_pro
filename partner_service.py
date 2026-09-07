@@ -27,7 +27,7 @@ DEFAULT_PARTNERS: Dict[str, Dict[str, Any]] = {
 
 
 def _load_partners_data() -> Dict[str, Any]:
-    """Carga la base de datos de gráficas aliadas y conversiones registradas."""
+    """Carga la base de datos de gráficas aliadas y conversiones registradas con tolerancia a fallos."""
     data = {
         "partners": DEFAULT_PARTNERS.copy(),
         "conversions": []
@@ -37,7 +37,7 @@ def _load_partners_data() -> Dict[str, Any]:
             with open(PARTNERS_FILE, "r", encoding="utf-8") as f:
                 disk_data = json.load(f)
                 if isinstance(disk_data, dict):
-                    if "partners" in disk_data:
+                    if "partners" in disk_data and isinstance(disk_data["partners"], dict):
                         merged_partners = DEFAULT_PARTNERS.copy()
                         merged_partners.update(disk_data["partners"])
                         data["partners"] = merged_partners
@@ -49,12 +49,19 @@ def _load_partners_data() -> Dict[str, Any]:
 
 
 def _save_partners_data(data: Dict[str, Any]) -> bool:
-    """Guarda los datos de partners y conversiones en disco de forma segura."""
+    """Guarda los datos de partners y conversiones en disco de forma atómica y segura."""
+    tmp_file = f"{PARTNERS_FILE}.tmp"
     try:
-        with open(PARTNERS_FILE, "w", encoding="utf-8") as f:
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp_file, PARTNERS_FILE)
         return True
     except Exception:
+        if os.path.exists(tmp_file):
+            try:
+                os.remove(tmp_file)
+            except Exception:
+                pass
         return False
 
 
@@ -125,7 +132,28 @@ def record_partner_conversion(
     }
 
     data["conversions"].append(conversion_entry)
-    return _save_partners_data(data)
+    saved = _save_partners_data(data)
+
+    # Respaldo opcional en la nube si existe la tabla en Supabase
+    try:
+        from db_service import get_supabase
+        sb = get_supabase()
+        if sb:
+            sb.table("partner_conversions").insert({
+                "code": clean_code,
+                "partner_name": conversion_entry["partner_name"],
+                "user_id": str(user_id),
+                "user_email": str(email),
+                "creditos": int(creditos),
+                "total_paid": float(total_paid),
+                "commission_earned": float(commission_earned),
+                "order_ref": str(order_ref),
+                "timestamp": conversion_entry["timestamp"]
+            }).execute()
+    except Exception:
+        pass
+
+    return saved
 
 
 def get_partner_stats(code_or_pin: str) -> Optional[Dict[str, Any]]:
@@ -191,7 +219,7 @@ def save_or_update_partner(
         return False
 
     data = _load_partners_data()
-    data["partners"][clean_code] = {
+    partner_entry = {
         "code": clean_code,
         "name": name.strip(),
         "discount_pct": float(discount_pct),
@@ -201,7 +229,28 @@ def save_or_update_partner(
         "active": bool(active),
         "created_at": datetime.datetime.now().isoformat()
     }
-    return _save_partners_data(data)
+    data["partners"][clean_code] = partner_entry
+    saved = _save_partners_data(data)
+
+    # Respaldo opcional en la nube si existe la tabla en Supabase
+    try:
+        from db_service import get_supabase
+        sb = get_supabase()
+        if sb:
+            sb.table("partners").upsert({
+                "code": clean_code,
+                "name": partner_entry["name"],
+                "discount_pct": partner_entry["discount_pct"],
+                "commission_pct": partner_entry["commission_pct"],
+                "partner_pin": partner_entry["partner_pin"],
+                "contact_info": partner_entry["contact_info"],
+                "active": partner_entry["active"],
+                "created_at": partner_entry["created_at"]
+            }).execute()
+    except Exception:
+        pass
+
+    return saved
 
 
 def get_all_partners_summary() -> List[Dict[str, Any]]:

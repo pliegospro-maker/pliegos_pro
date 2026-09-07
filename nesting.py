@@ -4,6 +4,7 @@ Utiliza rectpack para calcular la disposición óptima de diseños y genera tant
 los minimapas para el visor interactivo como los archivos finales en alta (300 DPI) y baja resolución.
 """
 
+import gc
 import io
 import os
 import zipfile
@@ -296,6 +297,8 @@ def build_final_packages(
                 paste_x = x + edge_margin_px + margin_px
                 paste_y = gang_height_px - (y + h) - edge_margin_px + margin_px
                 gang_high.paste(resized_high, (paste_x, paste_y), resized_high)
+                resized_high.close()
+                del resized_high
 
                 # --- Elemento en Baja ---
                 low_w = max(1, int(conf["w_px"] * scale_factor))
@@ -307,6 +310,8 @@ def build_final_packages(
                 paste_low_x = int((x + edge_margin_px + margin_px) * scale_factor)
                 paste_low_y = int((gang_height_px - (y + h) - edge_margin_px + margin_px) * scale_factor)
                 sample_content.paste(low_img, (paste_low_x, paste_low_y), low_img)
+                low_img.close()
+                del low_img
 
             # --- Exportar Pliego Alta en los Formatos Seleccionados ---
             is_all = "Completo" in export_format or "Paquete" in export_format
@@ -316,12 +321,16 @@ def build_final_packages(
                 png_buf = io.BytesIO()
                 gang_high.save(png_buf, format='PNG', dpi=(DPI_HIGH, DPI_HIGH))
                 z_high.writestr(f"pliego_{pliego_num}_alta_300dpi.png", png_buf.getvalue())
+                png_buf.close()
+                del png_buf
 
             # TIFF con compresión LZW (estándar RIP)
             if is_all or "TIFF" in export_format:
                 tif_buf = io.BytesIO()
                 gang_high.save(tif_buf, format='TIFF', compression='tiff_lzw', dpi=(DPI_HIGH, DPI_HIGH))
                 z_high.writestr(f"pliego_{pliego_num}_alta_300dpi.tif", tif_buf.getvalue())
+                tif_buf.close()
+                del tif_buf
 
             # PDF escala 1:1 raster/vector
             if is_all or "PDF" in export_format:
@@ -330,9 +339,16 @@ def build_final_packages(
                 pdf_sheet.paste(gang_high, (0, 0), gang_high)
                 pdf_sheet.save(pdf_buf, format='PDF', resolution=float(DPI_HIGH))
                 z_high.writestr(f"pliego_{pliego_num}_alta_300dpi.pdf", pdf_buf.getvalue())
+                pdf_sheet.close()
+                del pdf_sheet
+                pdf_buf.close()
+                del pdf_buf
 
             # Ensamblar muestra de baja resolución con marca de agua
             preview_sheet.paste(sample_content, (0, 0), sample_content)
+            sample_content.close()
+            del sample_content
+
             if wm_img_sample is not None:
                 wm_w, wm_h = wm_img_sample.size
                 watermark_layer = Image.new("RGBA", preview_sheet.size, (255, 255, 255, 0))
@@ -340,10 +356,21 @@ def build_final_packages(
                     for x_pos in range(0, prev_w, wm_w + 80):
                         watermark_layer.paste(wm_img_sample, (x_pos, y_pos), wm_img_sample)
                 preview_sheet = Image.alpha_composite(preview_sheet, watermark_layer)
+                watermark_layer.close()
+                del watermark_layer
 
             img_byte_arr_low = io.BytesIO()
             preview_sheet.save(img_byte_arr_low, format='PNG', dpi=(DPI_LOW, DPI_LOW))
             z_low.writestr(f"muestra_{pliego_num}_cliente_72dpi.png", img_byte_arr_low.getvalue())
+            img_byte_arr_low.close()
+            del img_byte_arr_low
+            preview_sheet.close()
+            del preview_sheet
+
+            # Liberar canvas en alta y forzar recolección de basura
+            gang_high.close()
+            del gang_high
+            gc.collect()
 
     return zip_buffer_high.getvalue(), zip_buffer_low.getvalue(), cantidad_pliegos
 

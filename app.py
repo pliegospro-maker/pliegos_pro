@@ -83,7 +83,8 @@ from db_service import (
     get_all_users_summary,
     set_user_credits,
     adjust_user_credits,
-    get_supabase
+    get_supabase,
+    obtener_archivo_pliego
 )
 from payment_service import (
     create_mp_preference,
@@ -577,15 +578,28 @@ with tab_historial:
                 with h_col2:
                     st.markdown(f"**Pliegos:** `{item.get('cant_pliegos', 1)}`")
                 with h_col3:
-                    # Si el archivo está en memoria, permitir descarga inmediata
-                    if st.session_state.get("zip_final_alta") is not None and idx == 0:
+                    pliego_id = item.get("pliego_id") or item.get("id") or f"pliego_{idx}"
+                    archivo_pliego_bytes = obtener_archivo_pliego(item.get("user_id") or user_id, pliego_id)
+
+                    if archivo_pliego_bytes is not None:
                         st.download_button(
-                            label="📥 Re-descargar Pliego",
+                            label="📥 Descargar Pliego",
+                            data=archivo_pliego_bytes,
+                            file_name=f"pliego_{str(pliego_id)[:10]}_300dpi.zip",
+                            mime="application/zip",
+                            key=f"redownload_disk_{pliego_id}_{idx}",
+                            use_container_width=True,
+                            type="primary"
+                        )
+                    elif st.session_state.get("zip_final_alta") is not None and idx == 0:
+                        st.download_button(
+                            label="📥 Descargar Pliego",
                             data=st.session_state.zip_final_alta,
                             file_name="pliegos_alta_300dpi.zip",
                             mime="application/zip",
-                            key=f"redownload_btn_{idx}",
-                            use_container_width=True
+                            key=f"redownload_mem_{idx}",
+                            use_container_width=True,
+                            type="primary"
                         )
                     else:
                         st.caption("✅ Desbloqueado previamente")
@@ -1371,7 +1385,8 @@ with tab_armador:
                                     "header": header_client_text,
                                     "total_diseños": len(image_configs)
                                 },
-                                email=email_usuario
+                                email=email_usuario,
+                                zip_bytes=st.session_state.get("zip_final_alta")
                             )
 
                             # Si se usó cupón de gráfica aliada, registrar conversión

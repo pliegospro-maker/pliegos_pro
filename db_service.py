@@ -450,6 +450,48 @@ def descartar_proyecto_guardado(user_id: str) -> bool:
     return True
 
 
+PLIEGOS_DIR = "descargas_pliegos"
+
+def guardar_archivo_pliego(user_id: str, pliego_id: str, zip_bytes: bytes) -> str:
+    """Persiste los bytes del pliego en disco organizado para permitir re-descargas permanentes."""
+    try:
+        if not zip_bytes:
+            return ""
+        user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
+        os.makedirs(user_folder, exist_ok=True)
+        file_path = os.path.join(user_folder, f"{pliego_id}.zip")
+        with open(file_path, "wb") as f:
+            f.write(zip_bytes)
+        return file_path
+    except Exception as e:
+        print(f"Error guardando archivo pliego: {e}")
+        return ""
+
+
+def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
+    """Recupera los bytes del archivo pliego desde el disco si existe."""
+    try:
+        if not pliego_id:
+            return None
+        clean_pid = str(pliego_id).replace(".zip", "")
+        # 1. Búsqueda directa por carpeta de usuario
+        if user_id:
+            user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
+            file_path = os.path.join(user_folder, f"{clean_pid}.zip")
+            if os.path.exists(file_path):
+                with open(file_path, "rb") as f:
+                    return f.read()
+        # 2. Búsqueda recursiva en descargas_pliegos
+        if os.path.exists(PLIEGOS_DIR):
+            for root, _, files in os.walk(PLIEGOS_DIR):
+                if f"{clean_pid}.zip" in files:
+                    with open(os.path.join(root, f"{clean_pid}.zip"), "rb") as f:
+                        return f.read()
+        return None
+    except Exception:
+        return None
+
+
 # --- HISTORIAL DE PLIEGOS DESBLOQUEADOS ---
 def registrar_pliego_desbloqueado(
     user_id: str,
@@ -457,7 +499,8 @@ def registrar_pliego_desbloqueado(
     cant_pliegos: int,
     formato: str,
     config_resumen: Optional[Dict[str, Any]] = None,
-    email: Optional[str] = None
+    email: Optional[str] = None,
+    zip_bytes: Optional[bytes] = None
 ) -> bool:
     """
     Registra un pliego desbloqueado/pagado en el historial del usuario tanto en Supabase como en disco local.
@@ -479,6 +522,12 @@ def registrar_pliego_desbloqueado(
         except Exception:
             pass
 
+    pliego_id = f"pliego_{int(datetime.now().timestamp())}_{abs(hash(clean_email or user_id or '')) % 10000}"
+
+    # Guardar copia física persistente del archivo generado si fue provisto
+    if zip_bytes:
+        guardar_archivo_pliego(target_uuid or user_id, pliego_id, zip_bytes)
+
     # 1. Guardar en Supabase pliegos_historial
     if client and target_uuid:
         try:
@@ -497,6 +546,8 @@ def registrar_pliego_desbloqueado(
         db = _load_local_db()
         unlocked = db.setdefault("unlocked", [])
         unlocked.insert(0, {
+            "id": pliego_id,
+            "pliego_id": pliego_id,
             "user_id": user_id or target_uuid or "",
             "email": clean_email,
             "nombre_pliego": nombre_pliego,
@@ -542,7 +593,8 @@ def obtener_historial_desbloqueados(user_id: str, email: Optional[str] = None) -
             if resp.data:
                 for r in resp.data:
                     items.append({
-                        "id": r.get("id"),
+                        "id": str(r.get("id")),
+                        "pliego_id": str(r.get("id")),
                         "user_id": r.get("user_id"),
                         "nombre_pliego": r.get("sheet_type") or "Pliego DTF",
                         "sheet_type": r.get("sheet_type") or "Pliego DTF",
@@ -568,6 +620,7 @@ def obtener_historial_desbloqueados(user_id: str, email: Optional[str] = None) -
                 if not ya_esta:
                     items.append({
                         "id": loc.get("id", ""),
+                        "pliego_id": loc.get("pliego_id") or loc.get("id", ""),
                         "user_id": loc.get("user_id", ""),
                         "nombre_pliego": loc.get("nombre_pliego") or loc.get("sheet_type") or "Pliego DTF",
                         "sheet_type": loc.get("nombre_pliego") or loc.get("sheet_type") or "Pliego DTF",
