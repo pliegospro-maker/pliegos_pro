@@ -1,0 +1,16 @@
+# Secrets and environment
+.streamlit/secrets.toml
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Local data & temp exports
+*.zip
+output_*
+local_db.json
+

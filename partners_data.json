@@ -1,0 +1,230 @@
+{
+  "partners": {
+    "CUARTOCOLOR15": {
+      "code": "CUARTOCOLOR15",
+      "name": "CuartoColor",
+      "discount_pct": 15.0,
+      "commission_pct": 50.0,
+      "partner_pin": "cuarto2026",
+      "contact_info": "cuartocolor.mp",
+      "active": true,
+      "created_at": "2026-09-05T00:00:00"
+    },
+    "PAQUETE15": {
+      "code": "PAQUETE15",
+      "name": "PAQUETE IMPRESIONES",
+      "discount_pct": 15.0,
+      "commission_pct": 50.0,
+      "partner_pin": "paquete2026",
+      "contact_info": "1171032930",
+      "active": true,
+      "created_at": "2026-09-06T19:44:07.178100"
+    }
+  },
+  "conversions": [
+    {
+      "id": "conv_1_20260905135010",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-05T13:50:10.516124"
+    },
+    {
+      "id": "conv_2_20260906181509",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T18:15:09.955507"
+    },
+    {
+      "id": "conv_3_20260906192220",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:22:20.163901"
+    },
+    {
+      "id": "conv_4_20260906192447",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:24:47.492425"
+    },
+    {
+      "id": "conv_5_20260906192900",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:29:00.838526"
+    },
+    {
+      "id": "conv_6_20260906193149",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:31:49.414292"
+    },
+    {
+      "id": "conv_7_20260906193729",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:37:29.617232"
+    },
+    {
+      "id": "conv_8_20260906195409",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:54:09.960955"
+    },
+    {
+      "id": "conv_9_20260906195953",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T19:59:53.942555"
+    },
+    {
+      "id": "conv_10_20260906200539",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:05:39.674742"
+    },
+    {
+      "id": "conv_11_20260906201224",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:12:24.307531"
+    },
+    {
+      "id": "conv_12_20260906201606",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:16:06.437525"
+    },
+    {
+      "id": "conv_13_20260906202022",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:20:22.553421"
+    },
+    {
+      "id": "conv_14_20260906203541",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:35:41.579214"
+    },
+    {
+      "id": "conv_15_20260906205152",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:51:52.401434"
+    },
+    {
+      "id": "conv_16_20260906205343",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T20:53:43.935004"
+    },
+    {
+      "id": "conv_17_20260906210350",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T21:03:50.221196"
+    }
+  ]
+}

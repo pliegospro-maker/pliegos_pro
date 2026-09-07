@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Preview PliegosPro Loader</title>
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    background: #0d151d;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Loader Backdrop Overlay */
+  .pliegospro-loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(8, 14, 21, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999999;
+    animation: pliegosFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes pliegosFadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Dial / Clock Frame Container */
+  .loader-dial-container {
+    position: relative;
+    width: 170px;
+    height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Outer Orbiting Clock Ring ("Relojito") */
+  .loader-clock-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 255, 255, 0.12);
+    border-top-color: #00FFFF;
+    border-right-color: #A855F7;
+    animation: clockSpin 1.4s linear infinite;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.35), inset 0 0 15px rgba(168, 85, 247, 0.25);
+  }
+
+  /* Subtle Second Pulsing Radar Dial */
+  .loader-radar-sweep {
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    animation: clockSpinReverse 3.2s linear infinite;
+  }
+
+  @keyframes clockSpin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  @keyframes clockSpinReverse {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+  }
+
+  /* Center Isotipo Gang Sheet Shapes Uniting */
+  .isotipo-svg-container {
+    position: relative;
+    width: 72px;
+    height: 108px;
+    filter: drop-shadow(0 0 16px rgba(0, 255, 255, 0.5));
+    animation: isotipoPulse 2s ease-in-out infinite;
+  }
+
+  @keyframes isotipoPulse {
+    0%, 100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 14px rgba(0, 255, 255, 0.45));
+    }
+    50% {
+      transform: scale(1.04);
+      filter: drop-shadow(0 0 24px rgba(167, 78, 246, 0.75)) drop-shadow(0 0 12px rgba(40, 213, 240, 0.9));
+    }
+  }
+
+  /* Individual Shapes Uniting / Snapping Animation */
+  .iso-shape {
+    transform-origin: center center;
+    transition: all 0.4s ease;
+  }
+
+  /* Top-Left Tall Block (Cyan) */
+  .iso-shape-tl {
+    animation: uniteTopLeft 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  }
+  @keyframes uniteTopLeft {
+    0% { transform: translate(-26px, -26px); opacity: 0.65; }
+    35%, 85% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(-26px, -26px); opacity: 0.65; }
+  }
+
+  /* Top-Right Top Square (Turquoise) */
+  .iso-shape-tr {
+    animation: uniteTopRight 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  }
+  @keyframes uniteTopRight {
+    0% { transform: translate(26px, -26px); opacity: 0.65; }
+    35%, 85% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(26px, -26px); opacity: 0.65; }
+  }
+
+  /* Top-Right Bottom Square (Royal Violet) */
+  .iso-shape-mr {
+    animation: uniteMidRight 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  }
+  @keyframes uniteMidRight {
+    0% { transform: translate(26px, 16px); opacity: 0.65; }
+    35%, 85% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(26px, 16px); opacity: 0.65; }
+  }
+
+  /* Bottom Wide Rectangle (Neon Violet Base) */
+  .iso-shape-b {
+    animation: uniteBottom 2.2s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+  }
+  @keyframes uniteBottom {
+    0% { transform: translate(0, 30px); opacity: 0.65; }
+    35%, 85% { transform: translate(0, 0); opacity: 1; }
+    100% { transform: translate(0, 30px); opacity: 0.65; }
+  }
+
+  /* Typography and Status */
+  .loader-brand {
+    margin-top: 22px;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #00FFFF 0%, #C084FC 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+  }
+
+  .loader-status {
+    margin-top: 6px;
+    font-size: 0.88rem;
+    color: #94A3B8;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .loader-status-dots::after {
+    content: '...';
+    display: inline-block;
+    animation: ellipsisSteps 1.5s infinite steps(4, jump-none);
+    width: 14px;
+    text-align: left;
+  }
+  @keyframes ellipsisSteps {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+  }
+
+  .loader-badge {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    color: #38BDF8;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 3px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="pliegospro-loader-overlay">
+  <div class="loader-dial-container">
+    <div class="loader-clock-ring"></div>
+    <div class="loader-radar-sweep"></div>
+
+    <div class="isotipo-svg-container">
+      <svg viewBox="0 0 2244 3360" width="100%" height="100%" style="overflow: visible;">
+        <!-- Top-Left Tall Block (Cyan) -->
+        <rect class="iso-shape iso-shape-tl" x="1" y="5" width="1090" height="2192" rx="140" fill="#20A7EB" />
+        <!-- Top-Right Top Square (Turquoise) -->
+        <rect class="iso-shape iso-shape-tr" x="1158" y="3" width="1086" height="1071" rx="140" fill="#28D5F0" />
+        <!-- Top-Right Bottom Square (Royal Violet) -->
+        <rect class="iso-shape iso-shape-mr" x="1159" y="1115" width="1085" height="1082" rx="140" fill="#7C3BEF" />
+        <!-- Bottom Wide Rectangle (Neon Violet Base) -->
+        <rect class="iso-shape iso-shape-b" x="0" y="2246" width="2244" height="1111" rx="140" fill="#A74EF6" />
+      </svg>
+    </div>
+  </div>
+
+  <div class="loader-brand">Pliegos Pro</div>
+  <div class="loader-status">Procesando cambios<span class="loader-status-dots"></span></div>
+  <div class="loader-badge">⚡ Motor RIP DTF 300 DPI</div>
+</div>
+
+</body>
+</html>

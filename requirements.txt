@@ -1,0 +1,8 @@
+streamlit>=1.30.0
+Pillow>=10.0.0
+numpy>=1.24.0
+rectpack>=0.2.2
+supabase>=2.0.0
+mercadopago>=2.2.0
+streamlit-cropper>=0.2.1
+streamlit-drawable-canvas>=0.13.0
