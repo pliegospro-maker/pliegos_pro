@@ -512,3 +512,38 @@ def set_user_tutorial_completed(user_id: str, completed: bool = True) -> bool:
         return True
     return False
 
+
+def get_all_users_summary() -> List[Dict[str, Any]]:
+    """
+    Retorna la lista consolidada de todos los usuarios registrados y sus créditos actuales.
+    Consulta en Supabase si está activo, o en la base local de taller como respaldo.
+    """
+    client = get_supabase()
+    users_list = []
+
+    if client:
+        try:
+            resp = client.table("perfiles").select("*").order("created_at", desc=True).execute()
+            if resp.data:
+                for row in resp.data:
+                    users_list.append({
+                        "id": row.get("id", ""),
+                        "email": row.get("email", ""),
+                        "creditos": int(row.get("creditos", 0)),
+                        "created_at": row.get("created_at", "")
+                    })
+                return users_list
+        except Exception:
+            pass
+
+    # Modo Local / Respaldo
+    db = _load_local_db()
+    for email, u in db.get("users", {}).items():
+        users_list.append({
+            "id": u.get("id", ""),
+            "email": u.get("email", email),
+            "creditos": int(u.get("creditos", 0)),
+            "created_at": u.get("created_at", "")
+        })
+    return users_list
+
