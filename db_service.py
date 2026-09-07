@@ -121,9 +121,9 @@ def auth_sign_in(email: str, password: str) -> Tuple[Optional[str], Optional[str
             return stored["id"], None
         return None, "Contraseña incorrecta."
     else:
-        # Autoregistro ágil en modo local
+        # Autoregistro ágil en modo local (Freemium: inicia con 0 créditos para evitar abusos)
         new_id = f"local_{abs(hash(clean_email)) % 10000000}"
-        creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 10
+        creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 0
         users[clean_email] = {
             "id": new_id,
             "email": clean_email,
@@ -171,7 +171,7 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
         return users[clean_email]["id"], None
 
     new_id = f"local_{abs(hash(clean_email)) % 10000000}"
-    creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 10
+    creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 0
     users[clean_email] = {
         "id": new_id,
         "email": clean_email,
@@ -228,7 +228,7 @@ def get_user_credits(user_id: str, email: Optional[str] = None) -> int:
 
     if is_admin:
         return DEFAULT_ADMIN_CREDITS
-    return 10
+    return 0
 
 
 def deduct_credits_atomic(user_id: str, cantidad: int, email: Optional[str] = None) -> bool:
