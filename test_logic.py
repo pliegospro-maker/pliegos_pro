@@ -124,7 +124,9 @@ from partner_service import (
     validate_promo_code,
     record_partner_conversion,
     get_partner_stats,
-    get_all_partners_summary
+    get_all_partners_summary,
+    _load_partners_data,
+    _save_partners_data
 )
 
 # Validación de código existente (CUARTOCOLOR15) con precio base $6.000
@@ -138,30 +140,37 @@ assert p_comm == 2550.0, f"Comisión de partner esperada $2.550 (50%), obtenida 
 is_val_inv, _, _, _, _, _ = validate_promo_code("CODIGO_INEXISTENTE_999", base_price=6000.0)
 assert is_val_inv is False, "El código inexistente debe ser rechazado"
 
-# Registro de conversión y consulta de métricas
-conv_ok = record_partner_conversion(
-    code_raw="CUARTOCOLOR15",
-    user_id="usr_test_123",
-    email="cliente@test.com",
-    creditos=2,
-    total_paid=10200.0,
-    commission_earned=5100.0,
-    order_ref="2x DTF Textil 58x100"
-)
-assert conv_ok is True, "Falló el guardado de la conversión"
+# Respaldo para mantener la base de datos de producción limpia a 0
+backup_data = _load_partners_data()
 
-stats = get_partner_stats("CUARTOCOLOR15")
-assert stats is not None, "No se encontraron estadísticas para CUARTOCOLOR15"
-assert stats["total_pliegos"] >= 2, "La cantidad de pliegos debe ser al menos 2"
-assert stats["total_comision"] >= 5100.0, "La comisión acumulada debe reflejar la venta"
+try:
+    # Registro de conversión y consulta de métricas
+    conv_ok = record_partner_conversion(
+        code_raw="CUARTOCOLOR15",
+        user_id="usr_test_123",
+        email="cliente@test.com",
+        creditos=2,
+        total_paid=10200.0,
+        commission_earned=5100.0,
+        order_ref="2x DTF Textil 58x100"
+    )
+    assert conv_ok is True, "Falló el guardado de la conversión"
 
-# Búsqueda por PIN de partner
-stats_pin = get_partner_stats("cuarto2026")
-assert stats_pin is not None and stats_pin["code"] == "CUARTOCOLOR15", "La búsqueda por PIN debe encontrar al partner"
+    stats = get_partner_stats("CUARTOCOLOR15")
+    assert stats is not None, "No se encontraron estadísticas para CUARTOCOLOR15"
+    assert stats["total_pliegos"] >= 2, "La cantidad de pliegos debe ser al menos 2"
+    assert stats["total_comision"] >= 5100.0, "La comisión acumulada debe reflejar la venta"
 
-# Reporte consolidado maestro
-summary = get_all_partners_summary()
-assert len(summary) > 0, "El reporte maestro de partners no debe estar vacío"
+    # Búsqueda por PIN de partner
+    stats_pin = get_partner_stats("cuarto2026")
+    assert stats_pin is not None and stats_pin["code"] == "CUARTOCOLOR15", "La búsqueda por PIN debe encontrar al partner"
+
+    # Reporte consolidado maestro
+    summary = get_all_partners_summary()
+    assert len(summary) > 0, "El reporte maestro de partners no debe estar vacío"
+finally:
+    # Restaurar estado limpio a 0
+    _save_partners_data(backup_data)
 
 print("OK: Todos los tests unitarios avanzados pasaron exitosamente!")
 
