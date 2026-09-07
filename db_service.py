@@ -315,6 +315,16 @@ def set_user_credits(email_or_id: str, creditos: int) -> bool:
     return True
 
 
+def adjust_user_credits(email_or_id: str, delta: int) -> int:
+    """
+    Suma o resta una cantidad de créditos a un usuario. Retorna el nuevo saldo total.
+    """
+    actuales = get_user_credits("", email=email_or_id)
+    nuevos = max(0, actuales + delta)
+    set_user_credits(email_or_id, nuevos)
+    return nuevos
+
+
 
 def guardar_proyecto_actual(user_id: str, datos: Dict[str, Any]) -> bool:
     """

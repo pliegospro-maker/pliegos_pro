@@ -79,7 +79,10 @@ from db_service import (
     registrar_pliego_desbloqueado,
     obtener_historial_desbloqueados,
     get_user_tutorial_completed,
-    set_user_tutorial_completed
+    set_user_tutorial_completed,
+    get_all_users_summary,
+    set_user_credits,
+    adjust_user_credits
 )
 from payment_service import (
     create_mp_preference,
@@ -427,12 +430,24 @@ if st.session_state.get("promo_code_applied"):
     st.info(f"🎁 **Beneficio de Gráfica Aliada Activo:** Tenés un **{pct}% de descuento** en todos tus pliegos por cortesía de **{p_name}** (Cupón `{st.session_state.promo_code_applied}`).")
 
 # --- 5. NAVEGACIÓN PRINCIPAL EN PESTAÑAS ---
-tab_armador, tab_catalogo, tab_historial, tab_partners = st.tabs([
-    "📐 Armador de Pliegos",
-    "🎨 Catálogo de Diseños",
-    "📜 Mis Pliegos Comprados",
-    "🤝 Gráficas Aliadas"
-])
+admin_emails_clean = [e.lower().strip() for e in ADMIN_EMAILS]
+is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean) or st.session_state.get("admin_catalogo_activo", False)
+
+if is_admin:
+    tab_armador, tab_catalogo, tab_historial, tab_partners, tab_admin_users = st.tabs([
+        "📐 Armador de Pliegos",
+        "🎨 Catálogo de Diseños",
+        "📜 Mis Pliegos Comprados",
+        "🤝 Gráficas Aliadas",
+        "👥 Clientes y Créditos"
+    ])
+else:
+    tab_armador, tab_catalogo, tab_historial, tab_partners = st.tabs([
+        "📐 Armador de Pliegos",
+        "🎨 Catálogo de Diseños",
+        "📜 Mis Pliegos Comprados",
+        "🤝 Gráficas Aliadas"
+    ])
 
 
 # =========================================================================
@@ -716,6 +731,135 @@ with tab_partners:
                 st.info("💡 Aún no se han registrado pliegos con tu código. ¡Comenzá a compartir tu link para empezar a comisionar!")
         else:
             st.error("No encontramos ninguna gráfica registrada con ese código o PIN.")
+
+
+# =========================================================================
+# PESTAÑA 5: ADMINISTRACIÓN DE CLIENTES Y CRÉDITOS (SÓLO ADMINISTRADORES)
+# =========================================================================
+if is_admin:
+    with tab_admin_users:
+        st.markdown("<h3 class='section-title'>👥 Panel de Administración: Clientes y Créditos</h3>", unsafe_allow_html=True)
+        st.caption("Panel confidencial para administradores de PliegosPro. Supervisá la base de clientes registrados, saldos en cuenta y asigná créditos manualmente a compras por transferencia o en taller.")
+
+        usuarios_data = get_all_users_summary()
+        tot_usuarios = len(usuarios_data)
+        tot_creditos = sum(int(u.get("creditos", 0)) for u in usuarios_data)
+        con_saldo = sum(1 for u in usuarios_data if int(u.get("creditos", 0)) > 0)
+        promedio = round(tot_creditos / tot_usuarios, 1) if tot_usuarios > 0 else 0
+
+        # KPI Metrics Cards
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1:
+            st.metric("👤 Clientes Registrados", f"{tot_usuarios}")
+        with kpi2:
+            st.metric("💳 Créditos en Circulación", f"{tot_creditos}")
+        with kpi3:
+            st.metric("💰 Clientes con Saldo Activo", f"{con_saldo}")
+        with kpi4:
+            st.metric("📊 Promedio por Cuenta", f"{promedio}")
+
+        st.divider()
+
+        # Herramienta de Carga Manual de Créditos (Transferencia / Taller)
+        with st.expander("⚡ Cargar o Modificar Créditos Manualmente (Transferencia / Taller)", expanded=True):
+            st.markdown("Utilizá este formulario cuando un cliente realice un pago por transferencia bancaria o en efectivo en el taller para acreditarle pliegos al instante.")
+
+            emails_existentes = sorted(list({u.get("email", "").strip().lower() for u in usuarios_data if u.get("email")}))
+
+            c_adm_u1, c_adm_u2, c_adm_u3 = st.columns([2, 1.5, 1.2])
+            with c_adm_u1:
+                email_target_sel = st.selectbox(
+                    "Seleccionar cliente existente:",
+                    options=["-- Seleccionar cliente --"] + emails_existentes,
+                    key="sel_admin_target_email"
+                )
+                email_manual = st.text_input(
+                    "O ingresar email manualmente:",
+                    value="" if email_target_sel != "-- Seleccionar cliente --" else "",
+                    placeholder="cliente@ejemplo.com",
+                    key="inp_admin_target_email"
+                )
+                target_email = email_manual.strip().lower() if email_manual.strip() else (
+                    email_target_sel if email_target_sel != "-- Seleccionar cliente --" else ""
+                )
+
+            with c_adm_u2:
+                modo_ajuste = st.radio(
+                    "Acción a realizar:",
+                    options=["➕ Sumar Créditos (Recarga)", "✏️ Establecer Saldo Exacto"],
+                    key="rad_admin_modo_ajuste"
+                )
+                cant_creditos = st.number_input(
+                    "Cantidad de Créditos:",
+                    min_value=1 if "Sumar" in modo_ajuste else 0,
+                    max_value=10000,
+                    value=10 if "Sumar" in modo_ajuste else 0,
+                    step=1,
+                    key="num_admin_cant_creditos"
+                )
+
+            with c_adm_u3:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                if st.button("💾 Aplicar Créditos", type="primary", use_container_width=True, key="btn_admin_save_credits"):
+                    if not target_email or "@" not in target_email:
+                        st.error("Por favor seleccioná o ingresá un email válido.")
+                    else:
+                        if "Sumar" in modo_ajuste:
+                            nuevo_saldo = adjust_user_credits(target_email, int(cant_creditos))
+                            st.success(f"✅ ¡Acreditación exitosa! Se sumaron **+{cant_creditos}** créditos. Saldo actual de **{target_email}**: **{nuevo_saldo} créditos**.")
+                        else:
+                            set_user_credits(target_email, int(cant_creditos))
+                            st.success(f"✅ ¡Saldo actualizado! **{target_email}** ahora tiene **{cant_creditos} créditos**.")
+                        st.rerun()
+
+        st.divider()
+
+        # Tabla interactiva de usuarios
+        st.markdown("#### 📋 Listado y Detalle de Cuentas")
+        col_busq, col_filtro = st.columns([3, 1.5])
+        with col_busq:
+            busq_cliente = st.text_input("🔍 Buscar cliente por email o ID:", "", key="filtro_admin_clientes")
+        with col_filtro:
+            filtro_saldo = st.checkbox("Mostrar solo con saldo > 0", value=False, key="chk_solo_con_saldo")
+
+        # Filtrado de datos
+        usuarios_filtrados = usuarios_data
+        if busq_cliente.strip():
+            b = busq_cliente.strip().lower()
+            usuarios_filtrados = [u for u in usuarios_filtrados if b in u.get("email", "").lower() or b in u.get("id", "").lower()]
+        if filtro_saldo:
+            usuarios_filtrados = [u for u in usuarios_filtrados if int(u.get("creditos", 0)) > 0]
+
+        if usuarios_filtrados:
+            tabla_clientes = []
+            for u in usuarios_filtrados:
+                f_creado = u.get("created_at", "")
+                if f_creado and "T" in f_creado:
+                    f_creado = f_creado.replace("T", " ")[:16]
+                tabla_clientes.append({
+                    "📧 Email del Cliente": u.get("email", "Sin email"),
+                    "💳 Créditos Disponibles": int(u.get("creditos", 0)),
+                    "📅 Fecha de Registro": f_creado if f_creado else "No registrada",
+                    "🆔 ID": u.get("id", "")
+                })
+
+            st.dataframe(tabla_clientes, use_container_width=True, hide_index=True)
+
+            # Exportar CSV
+            csv_lines = ["Email,Creditos,Fecha_Registro,ID"]
+            for u in usuarios_filtrados:
+                csv_lines.append(f'"{u.get("email", "")}",{u.get("creditos", 0)},"{u.get("created_at", "")}","{u.get("id", "")}"')
+            csv_data = "\n".join(csv_lines).encode("utf-8")
+
+            st.download_button(
+                "📥 Descargar Reporte de Clientes (CSV)",
+                data=csv_data,
+                file_name="clientes_pliegospro.csv",
+                mime="text/csv",
+                key="btn_descargar_csv_clientes"
+            )
+        else:
+            st.info("No se encontraron usuarios que coincidan con la búsqueda o filtro.")
 
 
 # =========================================================================
