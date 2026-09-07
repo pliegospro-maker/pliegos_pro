@@ -453,15 +453,31 @@ def descartar_proyecto_guardado(user_id: str) -> bool:
 PLIEGOS_DIR = "descargas_pliegos"
 
 def guardar_archivo_pliego(user_id: str, pliego_id: str, zip_bytes: bytes) -> str:
-    """Persiste los bytes del pliego en disco organizado para permitir re-descargas permanentes."""
+    """Persiste los bytes del pliego en disco organizado y en Supabase Storage si está disponible."""
     try:
-        if not zip_bytes:
+        if not zip_bytes or not pliego_id:
             return ""
-        user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
+        clean_pid = str(pliego_id).replace(".zip", "")
+
+        # 1. Guardar en disco local
+        user_folder = os.path.join(PLIEGOS_DIR, str(user_id or "general"))
         os.makedirs(user_folder, exist_ok=True)
-        file_path = os.path.join(user_folder, f"{pliego_id}.zip")
+        file_path = os.path.join(user_folder, f"{clean_pid}.zip")
         with open(file_path, "wb") as f:
             f.write(zip_bytes)
+
+        # 2. Respaldo en Supabase Storage (en la nube para sobrevivir reinicios de Streamlit Cloud)
+        try:
+            client = get_supabase()
+            if client:
+                client.storage.from_("pliegos").upload(
+                    path=f"{clean_pid}.zip",
+                    file=zip_bytes,
+                    file_options={"content-type": "application/zip", "upsert": "true"}
+                )
+        except Exception:
+            pass
+
         return file_path
     except Exception as e:
         print(f"Error guardando archivo pliego: {e}")
@@ -469,11 +485,12 @@ def guardar_archivo_pliego(user_id: str, pliego_id: str, zip_bytes: bytes) -> st
 
 
 def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
-    """Recupera los bytes del archivo pliego desde el disco si existe."""
+    """Recupera los bytes del archivo pliego desde el disco o Supabase Storage."""
     try:
         if not pliego_id:
             return None
         clean_pid = str(pliego_id).replace(".zip", "")
+
         # 1. Búsqueda directa por carpeta de usuario
         if user_id:
             user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
@@ -481,12 +498,33 @@ def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
             if os.path.exists(file_path):
                 with open(file_path, "rb") as f:
                     return f.read()
+
         # 2. Búsqueda recursiva en descargas_pliegos
         if os.path.exists(PLIEGOS_DIR):
             for root, _, files in os.walk(PLIEGOS_DIR):
                 if f"{clean_pid}.zip" in files:
                     with open(os.path.join(root, f"{clean_pid}.zip"), "rb") as f:
                         return f.read()
+
+        # 3. Descarga desde Supabase Storage (si corre en Streamlit Cloud)
+        try:
+            client = get_supabase()
+            if client:
+                for r_path in [f"{clean_pid}.zip", f"{user_id}/{clean_pid}.zip"]:
+                    try:
+                        data = client.storage.from_("pliegos").download(r_path)
+                        if data:
+                            if user_id:
+                                user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
+                                os.makedirs(user_folder, exist_ok=True)
+                                with open(os.path.join(user_folder, f"{clean_pid}.zip"), "wb") as f:
+                                    f.write(data)
+                            return data
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
         return None
     except Exception:
         return None
@@ -522,24 +560,30 @@ def registrar_pliego_desbloqueado(
         except Exception:
             pass
 
-    pliego_id = f"pliego_{int(datetime.now().timestamp())}_{abs(hash(clean_email or user_id or '')) % 10000}"
-
-    # Guardar copia física persistente del archivo generado si fue provisto
-    if zip_bytes:
-        guardar_archivo_pliego(target_uuid or user_id, pliego_id, zip_bytes)
-
-    # 1. Guardar en Supabase pliegos_historial
+    supabase_id = None
+    # 1. Guardar en Supabase pliegos_historial primero para capturar el UUID oficial
     if client and target_uuid:
         try:
-            client.table("pliegos_historial").insert({
+            ins_res = client.table("pliegos_historial").insert({
                 "user_id": target_uuid,
                 "sheet_type": nombre_pliego,
                 "quantity": int(cant_pliegos),
                 "format": formato,
                 "created_at": ahora_iso
             }).execute()
+            if ins_res.data and len(ins_res.data) > 0:
+                supabase_id = str(ins_res.data[0].get("id"))
         except Exception as err:
             print(f"Error insertando historial en Supabase: {err}")
+
+    # pliego_id: usa el UUID oficial de Supabase para match 1:1, o fallback con timestamp
+    pliego_id = supabase_id or f"pliego_{int(datetime.now().timestamp())}_{abs(hash(clean_email or user_id or '')) % 10000}"
+
+    # Guardar copia física persistente del archivo generado si fue provisto
+    if zip_bytes:
+        guardar_archivo_pliego(target_uuid or user_id, pliego_id, zip_bytes)
+        if user_id and target_uuid and user_id != target_uuid:
+            guardar_archivo_pliego(user_id, pliego_id, zip_bytes)
 
     # 2. Guardar en local_db.json como respaldo permanente en disco
     try:
@@ -548,7 +592,7 @@ def registrar_pliego_desbloqueado(
         unlocked.insert(0, {
             "id": pliego_id,
             "pliego_id": pliego_id,
-            "user_id": user_id or target_uuid or "",
+            "user_id": target_uuid or user_id or "",
             "email": clean_email,
             "nombre_pliego": nombre_pliego,
             "sheet_type": nombre_pliego,

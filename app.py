@@ -581,9 +581,14 @@ with tab_historial:
                     pliego_id = item.get("pliego_id") or item.get("id") or f"pliego_{idx}"
                     archivo_pliego_bytes = obtener_archivo_pliego(item.get("user_id") or user_id, pliego_id)
 
+                    # Si el archivo está en memoria activa (recién calculado/desbloqueado), persistirlo en disco
+                    if archivo_pliego_bytes is None and st.session_state.get("zip_final_alta") is not None and idx == 0:
+                        archivo_pliego_bytes = st.session_state.zip_final_alta
+                        guardar_archivo_pliego(item.get("user_id") or user_id, pliego_id, archivo_pliego_bytes)
+
                     if archivo_pliego_bytes is not None:
                         st.download_button(
-                            label="📥 Descargar Pliego",
+                            label="📥 Descargar Pliego (300 DPI)",
                             data=archivo_pliego_bytes,
                             file_name=f"pliego_{str(pliego_id)[:10]}_300dpi.zip",
                             mime="application/zip",
@@ -591,18 +596,9 @@ with tab_historial:
                             use_container_width=True,
                             type="primary"
                         )
-                    elif st.session_state.get("zip_final_alta") is not None and idx == 0:
-                        st.download_button(
-                            label="📥 Descargar Pliego",
-                            data=st.session_state.zip_final_alta,
-                            file_name="pliegos_alta_300dpi.zip",
-                            mime="application/zip",
-                            key=f"redownload_mem_{idx}",
-                            use_container_width=True,
-                            type="primary"
-                        )
                     else:
-                        st.caption("✅ Desbloqueado previamente")
+                        st.caption("✅ Desbloqueado con créditos")
+                        st.caption("💡 *Podés volver a descargarlo armando tu pliego en el Diseñador.*")
                 st.divider()
 
 
