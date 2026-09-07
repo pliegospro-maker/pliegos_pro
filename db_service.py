@@ -34,34 +34,49 @@ def _save_local_db(data: Dict[str, Any]):
         pass
 
 
-def is_supabase_configured() -> bool:
-    """Verifica si las claves de Supabase están presentes y configuradas con valores reales y válidos."""
+_SUPABASE_CLIENT_INSTANCE: Optional[Client] = None
+
+def _get_clean_supabase_keys() -> Tuple[str, str]:
+    """Obtiene y limpia las credenciales de Supabase."""
+    url = ""
+    key = ""
     try:
         url = st.secrets.get("SUPABASE_URL", "")
         key = st.secrets.get("SUPABASE_KEY", "")
-        if not url or not key:
-            return False
-        # Descartar placeholders de ejemplo
-        if "tu-proyecto" in url or "tu-supabase" in key or "tu-clave" in key:
-            return False
-        # Las claves públicas anon de Supabase son siempre tokens JWT que inician con 'eyJ'
-        # Si no inicia con 'eyJ', es un valor no válido (ej: ID de proyecto o contraseña de base de datos)
-        if not str(key).strip().startswith("eyJ"):
-            return False
-        return True
     except Exception:
+        pass
+    if not url:
+        url = os.environ.get("SUPABASE_URL", "")
+    if not key:
+        key = os.environ.get("SUPABASE_KEY", "")
+    url = str(url).strip().strip("'").strip('"')
+    key = str(key).strip().strip("'").strip('"')
+    return url, key
+
+
+def is_supabase_configured() -> bool:
+    """Verifica si las claves de Supabase están presentes y configuradas con valores reales y válidos."""
+    url, key = _get_clean_supabase_keys()
+    if not url or not key:
         return False
+    if "tu-proyecto" in url or "tu-supabase" in key or "tu-clave" in key:
+        return False
+    if not key.startswith("eyJ"):
+        return False
+    return True
 
 
-@st.cache_resource
 def get_supabase() -> Optional[Client]:
-    """Retorna la instancia única del cliente de Supabase (cacheada en memoria)."""
+    """Retorna la instancia única del cliente de Supabase (sin cachear estados nulos)."""
+    global _SUPABASE_CLIENT_INSTANCE
+    if _SUPABASE_CLIENT_INSTANCE is not None:
+        return _SUPABASE_CLIENT_INSTANCE
+    if not is_supabase_configured():
+        return None
+    url, key = _get_clean_supabase_keys()
     try:
-        if not is_supabase_configured():
-            return None
-        url = st.secrets.get("SUPABASE_URL")
-        key = st.secrets.get("SUPABASE_KEY")
-        return create_client(url, key)
+        _SUPABASE_CLIENT_INSTANCE = create_client(url, key)
+        return _SUPABASE_CLIENT_INSTANCE
     except Exception:
         return None
 
@@ -156,13 +171,15 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
                 except Exception:
                     pass
                 return user_id, None
-            return None, "Error al crear la cuenta en Supabase."
+            return None, "No se pudo crear el usuario en Supabase."
         except Exception as err:
             err_msg = str(err).lower()
-            if "already registered" in err_msg:
+            if "already registered" in err_msg or "already exists" in err_msg:
                 return None, "Este email ya está registrado. Por favor iniciá sesión."
-            # Fallback a motor local si la API key o conexión fallan
-            pass
+            return None, f"Error en Supabase: {err}"
+
+    if is_supabase_configured():
+        return None, "No se pudo conectar con la base de datos Supabase. Por favor reintentá o revisá los Secrets."
 
     # Modo Local / Taller
     db = _load_local_db()

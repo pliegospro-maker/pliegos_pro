@@ -82,7 +82,8 @@ from db_service import (
     set_user_tutorial_completed,
     get_all_users_summary,
     set_user_credits,
-    adjust_user_credits
+    adjust_user_credits,
+    get_supabase
 )
 from payment_service import (
     create_mp_preference,
@@ -183,7 +184,15 @@ if not st.session_state.usuario_autenticado:
         st.markdown("<h1 style='text-align: center; color: #38BDF8;'>📐 PliegosPro</h1>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("<h2 class='section-title'>🔐 Acceso a PliegosPro</h2>", unsafe_allow_html=True)
+    col_title, col_db_status = st.columns([2, 1])
+    with col_title:
+        st.markdown("<h2 class='section-title'>🔐 Acceso a PliegosPro</h2>", unsafe_allow_html=True)
+    with col_db_status:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if is_supabase_configured() and get_supabase():
+            st.markdown("<p style='text-align: right; color: #10B981; font-size: 13px; font-weight: bold;'>🟢 Supabase Online</p>", unsafe_allow_html=True)
+        else:
+            st.markdown("<p style='text-align: right; color: #F59E0B; font-size: 13px;'>⚠️ Modo Local Taller</p>", unsafe_allow_html=True)
 
     tab_login, tab_registro = st.tabs(["Iniciar Sesión", "Crear Cuenta"])
 
