@@ -201,6 +201,10 @@ if not st.session_state.usuario_autenticado:
                     st.session_state.email_usuario = email_login
                     st.session_state.creditos = get_user_credits(user_id, email_login)
 
+                    # Mostrar la guía rápida SOLO al iniciar sesión si no la completó/desactivó antes
+                    if not get_user_tutorial_completed(user_id):
+                        st.session_state.debe_mostrar_tutorial = True
+
                     proy_reciente = obtener_proyecto_reciente(user_id)
                     if proy_reciente:
                         datos_guardados, minutos = proy_reciente
@@ -332,6 +336,10 @@ def show_tutorial_dialog(u_id: str):
             if st.button("⬅️ Anterior", key="btn_tut_prev", use_container_width=True):
                 st.session_state.tutorial_step = step - 1
                 st.rerun()
+        else:
+            if st.button("✕ Cerrar", key="btn_tut_close_start", use_container_width=True):
+                st.session_state.tutorial_step = 1
+                st.rerun()
     with c_nav2:
         if step < 5:
             if st.button("Siguiente ➡️", key="btn_tut_next", type="primary", use_container_width=True):
@@ -340,7 +348,6 @@ def show_tutorial_dialog(u_id: str):
         else:
             if st.button("🚀 ¡Empezar!", key="btn_tut_finish", type="primary", use_container_width=True):
                 st.session_state.tutorial_step = 1
-                st.session_state.tutorial_abierto = False
                 set_user_tutorial_completed(u_id, completed=True)
                 st.rerun()
 
@@ -375,20 +382,17 @@ with col_der:
     with c_hdr1:
         if st.button("🎓 Tutorial", key="btn_open_tutorial_hdr", use_container_width=True):
             st.session_state.tutorial_step = 1
-            st.session_state.tutorial_abierto = True
-            st.rerun()
+            show_tutorial_dialog(user_id)
     with c_hdr2:
         if st.button("🚪 Salir", key="btn_logout", use_container_width=True):
             st.session_state.clear()
             st.query_params.clear()
             st.rerun()
 
-# Disparo automático del tutorial para usuarios primerizos (si no lo completaron ni deshabilitaron)
-if not get_user_tutorial_completed(user_id) and not st.session_state.get("tutorial_mostrado_sesion", False):
-    st.session_state.tutorial_mostrado_sesion = True
-    st.session_state.tutorial_abierto = True
-
-if st.session_state.get("tutorial_abierto", False):
+# Disparo del tutorial: se ejecuta ÚNICAMENTE al momento de iniciar sesión (una sola vez)
+if st.session_state.get("debe_mostrar_tutorial", False):
+    st.session_state.debe_mostrar_tutorial = False  # Se consume de inmediato para que no vuelva a saltar
+    st.session_state.tutorial_step = 1
     show_tutorial_dialog(user_id)
 
 # Notificación de recuperación de trabajo pendiente si existe
