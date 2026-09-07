@@ -57,6 +57,18 @@ def get_supabase() -> Optional[Client]:
         return None
 
 
+DEFAULT_ADMIN_CREDITS = 486
+
+
+def _get_admin_emails() -> List[str]:
+    """Retorna la lista de correos administradores en minúsculas."""
+    try:
+        from config import ADMIN_EMAILS
+        return [e.strip().lower() for e in ADMIN_EMAILS]
+    except Exception:
+        return ["paqueteimpresiones@gmail.com", "pliegospro@gmail.com", "admin@pliegospro.com"]
+
+
 def auth_sign_in(email: str, password: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Inicia sesión con Supabase Auth si está configurado, o mediante la base local de taller.
@@ -64,6 +76,8 @@ def auth_sign_in(email: str, password: str) -> Tuple[Optional[str], Optional[str
     """
     client = get_supabase()
     clean_email = email.strip().lower()
+    admin_emails = _get_admin_emails()
+    is_admin = clean_email in admin_emails
 
     if client:
         try:
@@ -80,16 +94,21 @@ def auth_sign_in(email: str, password: str) -> Tuple[Optional[str], Optional[str
     if clean_email in users:
         stored = users[clean_email]
         if stored.get("password") == password or not password:
+            # Asegurar créditos de administrador en modo local
+            if is_admin and stored.get("creditos", 0) < DEFAULT_ADMIN_CREDITS:
+                stored["creditos"] = DEFAULT_ADMIN_CREDITS
+                _save_local_db(db)
             return stored["id"], None
         return None, "Contraseña incorrecta."
     else:
         # Autoregistro ágil en modo local
         new_id = f"local_{abs(hash(clean_email)) % 10000000}"
+        creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 10
         users[clean_email] = {
             "id": new_id,
             "email": clean_email,
             "password": password,
-            "creditos": 10,  # Créditos de cortesía iniciales en modo local
+            "creditos": creditos_ini,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         db["users"] = users
@@ -103,6 +122,8 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
     """
     client = get_supabase()
     clean_email = email.strip().lower()
+    admin_emails = _get_admin_emails()
+    is_admin = clean_email in admin_emails
 
     if client:
         try:
@@ -110,7 +131,8 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
             if res.user:
                 user_id = res.user.id
                 try:
-                    client.table("perfiles").insert({"id": user_id, "email": clean_email, "creditos": 0}).execute()
+                    creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 0
+                    client.table("perfiles").insert({"id": user_id, "email": clean_email, "creditos": creditos_ini}).execute()
                 except Exception:
                     pass
                 return user_id, None
@@ -125,11 +147,12 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
         return users[clean_email]["id"], None
 
     new_id = f"local_{abs(hash(clean_email)) % 10000000}"
+    creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 10
     users[clean_email] = {
         "id": new_id,
         "email": clean_email,
         "password": password,
-        "creditos": 10,
+        "creditos": creditos_ini,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     db["users"] = users
@@ -137,31 +160,58 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
     return new_id, None
 
 
-def get_user_credits(user_id: str) -> int:
-    """Obtiene el saldo de créditos actual del usuario."""
-    if not user_id:
+def get_user_credits(user_id: str, email: Optional[str] = None) -> int:
+    """
+    Obtiene el saldo de créditos actual del usuario.
+    Busca tanto en Supabase (por user_id y por email) como en la base local.
+    """
+    if not user_id and not email:
         return 0
+
+    clean_email = email.strip().lower() if email else None
+    admin_emails = _get_admin_emails()
+    is_admin = bool(clean_email and clean_email in admin_emails)
+
     client = get_supabase()
     if client:
-        try:
-            resp = client.table("perfiles").select("creditos").eq("id", user_id).execute()
-            if resp.data and len(resp.data) > 0:
-                return int(resp.data[0].get("creditos", 0))
-        except Exception:
-            pass
+        # 1. Intentar por user_id en tabla perfiles
+        if user_id:
+            try:
+                resp = client.table("perfiles").select("creditos").eq("id", user_id).execute()
+                if resp.data and len(resp.data) > 0:
+                    return int(resp.data[0].get("creditos", 0))
+            except Exception:
+                pass
+        # 2. Intentar por email en tabla perfiles (compatibilidad código original)
+        if clean_email:
+            try:
+                resp = client.table("perfiles").select("creditos").eq("email", clean_email).execute()
+                if resp.data and len(resp.data) > 0:
+                    return int(resp.data[0].get("creditos", 0))
+            except Exception:
+                pass
 
     # Modo Local
     db = _load_local_db()
-    for _, u in db.get("users", {}).items():
-        if u.get("id") == user_id:
-            return int(u.get("creditos", 0))
+    for em, u in db.get("users", {}).items():
+        if (user_id and u.get("id") == user_id) or (clean_email and em.lower() == clean_email):
+            creds = int(u.get("creditos", 0))
+            if (is_admin or em.lower() in admin_emails) and creds < DEFAULT_ADMIN_CREDITS:
+                u["creditos"] = DEFAULT_ADMIN_CREDITS
+                _save_local_db(db)
+                return DEFAULT_ADMIN_CREDITS
+            return creds
+
+    if is_admin:
+        return DEFAULT_ADMIN_CREDITS
     return 10
 
 
-def deduct_credits_atomic(user_id: str, cantidad: int) -> bool:
+def deduct_credits_atomic(user_id: str, cantidad: int, email: Optional[str] = None) -> bool:
     """
     Descuenta créditos de forma atómica en Supabase o en la base local.
     """
+    clean_email = email.strip().lower() if email else None
     client = get_supabase()
     if client:
         try:
@@ -169,14 +219,37 @@ def deduct_credits_atomic(user_id: str, cantidad: int) -> bool:
                 "usuario_id": user_id,
                 "cantidad": cantidad
             }).execute()
-            return bool(resp.data is True)
+            if resp.data is True:
+                return True
+        except Exception:
+            pass
+
+        # Fallback de descuento directo en Supabase por id o email
+        try:
+            reg = None
+            if user_id:
+                q = client.table("perfiles").select("id, creditos").eq("id", user_id).execute()
+                if q.data and len(q.data) > 0:
+                    reg = q.data[0]
+            if not reg and clean_email:
+                q = client.table("perfiles").select("id, creditos").eq("email", clean_email).execute()
+                if q.data and len(q.data) > 0:
+                    reg = q.data[0]
+
+            if reg:
+                actuales = int(reg.get("creditos", 0))
+                if actuales >= cantidad:
+                    nuevos = actuales - cantidad
+                    client.table("perfiles").update({"creditos": nuevos}).eq("id", reg["id"]).execute()
+                    return True
+                return False
         except Exception:
             pass
 
     # Modo Local
     db = _load_local_db()
-    for _, u in db.get("users", {}).items():
-        if u.get("id") == user_id:
+    for em, u in db.get("users", {}).items():
+        if (user_id and u.get("id") == user_id) or (clean_email and em.lower() == clean_email):
             actuales = int(u.get("creditos", 0))
             if actuales >= cantidad:
                 u["creditos"] = actuales - cantidad
@@ -184,6 +257,39 @@ def deduct_credits_atomic(user_id: str, cantidad: int) -> bool:
                 return True
             return False
     return False
+
+
+def set_user_credits(email_or_id: str, creditos: int) -> bool:
+    """Establece manualmente los créditos de un usuario tanto en Supabase como en base local."""
+    clean_target = email_or_id.strip().lower()
+    client = get_supabase()
+    if client:
+        try:
+            client.table("perfiles").update({"creditos": creditos}).eq("email", clean_target).execute()
+        except Exception:
+            pass
+        try:
+            client.table("perfiles").update({"creditos": creditos}).eq("id", clean_target).execute()
+        except Exception:
+            pass
+
+    db = _load_local_db()
+    updated = False
+    for em, u in db.get("users", {}).items():
+        if em.lower() == clean_target or u.get("id") == clean_target:
+            u["creditos"] = creditos
+            updated = True
+    if not updated:
+        db.setdefault("users", {})[clean_target] = {
+            "id": f"local_{abs(hash(clean_target)) % 10000000}",
+            "email": clean_target,
+            "password": "",
+            "creditos": creditos,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    _save_local_db(db)
+    return True
+
 
 
 def guardar_proyecto_actual(user_id: str, datos: Dict[str, Any]) -> bool:

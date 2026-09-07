@@ -199,7 +199,7 @@ if not st.session_state.usuario_autenticado:
                     st.session_state.usuario_autenticado = True
                     st.session_state.user_id = user_id
                     st.session_state.email_usuario = email_login
-                    st.session_state.creditos = get_user_credits(user_id)
+                    st.session_state.creditos = get_user_credits(user_id, email_login)
 
                     proy_reciente = obtener_proyecto_reciente(user_id)
                     if proy_reciente:
@@ -356,7 +356,7 @@ def show_tutorial_dialog(u_id: str):
 # --- 4. HEADER Y BIENVENIDA DEL USUARIO LOGUEADO ---
 user_id = st.session_state.user_id
 email_usuario = st.session_state.email_usuario
-creditos_actuales = get_user_credits(user_id)
+creditos_actuales = get_user_credits(user_id, email_usuario)
 st.session_state.creditos = creditos_actuales
 
 col_izq, col_der = st.columns([3, 1])
@@ -1197,10 +1197,10 @@ with tab_armador:
             else:
                 if creditos_actuales >= cant_pliegos:
                     if st.button(f"💎 Desbloquear con {cant_pliegos} Crédito{'s' if cant_pliegos > 1 else ''}", type="primary", use_container_width=True):
-                        descuento_ok = deduct_credits_atomic(user_id, cant_pliegos)
+                        descuento_ok = deduct_credits_atomic(user_id, cant_pliegos, email_usuario)
                         if descuento_ok:
                             st.session_state.pliegos_desbloqueados = True
-                            st.session_state.creditos = get_user_credits(user_id)
+                            st.session_state.creditos = get_user_credits(user_id, email_usuario)
                             
                             # Registrar en el historial de compras del usuario
                             registrar_pliego_desbloqueado(

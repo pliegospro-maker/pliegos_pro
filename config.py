@@ -69,6 +69,7 @@ EXPORT_FORMATS = [
 
 # --- ADMINISTRADORES AUTORIZADOS ---
 ADMIN_EMAILS = [
+    "paqueteimpresiones@gmail.com",
     "pliegospro@gmail.com",
     "admin@pliegospro.com"
 ]
