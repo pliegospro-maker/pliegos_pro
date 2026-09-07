@@ -182,28 +182,15 @@ if not st.session_state.usuario_autenticado:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<h2 class='section-title'>🔐 Acceso a PliegosPro</h2>", unsafe_allow_html=True)
 
-    if not is_supabase_configured():
-        st.info("💻 **Modo Taller Local:** Los proyectos, usuarios y créditos se gestionan de forma local en este equipo. Podés ingresar o registrarte con tu email habitual.")
-
     tab_login, tab_registro = st.tabs(["Iniciar Sesión", "Crear Cuenta"])
 
     with tab_login:
         email_login = st.text_input("Tu Email", key="email_login").strip().lower()
         password_login = st.text_input("Tu Contraseña", type="password", key="pass_login")
 
-        col_l1, col_l2 = st.columns([1, 1])
-        with col_l1:
-            btn_login = st.button("Ingresar al Software", type="primary", use_container_width=True)
-        with col_l2:
-            btn_quick = False
-            if not is_supabase_configured():
-                btn_quick = st.button("🚀 Ingreso Rápido (admin)", use_container_width=True)
+        btn_login = st.button("Ingresar al Software", type="primary", use_container_width=True)
 
-        if btn_quick:
-            email_login = "admin@pliegospro.com"
-            password_login = "admin123"
-
-        if btn_login or btn_quick:
+        if btn_login:
             if not email_login or not password_login:
                 st.warning("Por favor completá tu email y contraseña.")
             else:

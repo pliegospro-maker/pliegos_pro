@@ -225,6 +225,18 @@
       "commission_earned": 5100.0,
       "order_ref": "2x DTF Textil 58x100",
       "timestamp": "2026-09-06T21:03:50.221196"
+    },
+    {
+      "id": "conv_18_20260906214847",
+      "code": "CUARTOCOLOR15",
+      "partner_name": "CuartoColor",
+      "user_id": "usr_test_123",
+      "user_email": "cliente@test.com",
+      "creditos": 2,
+      "total_paid": 10200.0,
+      "commission_earned": 5100.0,
+      "order_ref": "2x DTF Textil 58x100",
+      "timestamp": "2026-09-06T21:48:47.259843"
     }
   ]
 }
