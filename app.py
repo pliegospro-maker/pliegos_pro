@@ -562,7 +562,7 @@ with tab_historial:
     st.markdown("<h3 class='section-title'>📜 Mis Pliegos Desbloqueados</h3>", unsafe_allow_html=True)
     st.markdown("Acá tenés acceso a todos los pliegos que ya pagaste y desbloqueaste. Podés volver a descargarlos cuando quieras sin consumir créditos:")
 
-    historial_items = obtener_historial_desbloqueados(user_id)
+    historial_items = obtener_historial_desbloqueados(user_id, email=email_usuario)
 
     if not historial_items:
         st.info("💡 Aún no tenés pliegos comprados. Cada vez que generes y desbloquees un pliego, quedará registrado acá para re-descargas gratuitas.")
@@ -1370,7 +1370,8 @@ with tab_armador:
                                     "sheet_choice": sheet_choice,
                                     "header": header_client_text,
                                     "total_diseños": len(image_configs)
-                                }
+                                },
+                                email=email_usuario
                             )
 
                             # Si se usó cupón de gráfica aliada, registrar conversión

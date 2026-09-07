@@ -456,58 +456,132 @@ def registrar_pliego_desbloqueado(
     nombre_pliego: str,
     cant_pliegos: int,
     formato: str,
-    config_resumen: Dict[str, Any]
+    config_resumen: Optional[Dict[str, Any]] = None,
+    email: Optional[str] = None
 ) -> bool:
     """
-    Registra un pliego desbloqueado/pagado en el historial del usuario.
+    Registra un pliego desbloqueado/pagado en el historial del usuario tanto en Supabase como en disco local.
     """
-    if not user_id:
+    if not user_id and not email:
         return False
+    
+    ahora_iso = datetime.now(timezone.utc).isoformat()
     client = get_supabase()
-    payload = {
-        "user_id": user_id,
-        "nombre_pliego": nombre_pliego,
-        "cant_pliegos": cant_pliegos,
-        "formato": formato,
-        "config_json": json.dumps(config_resumen),
-        "created_at": datetime.now(timezone.utc).isoformat()
-    }
-    if client:
+    clean_email = email.strip().lower() if email else ""
+
+    # Determinar el UUID real para Supabase
+    target_uuid = user_id if (user_id and "-" in str(user_id)) else None
+    if client and not target_uuid and clean_email:
         try:
-            client.table("pliegos_historial").insert(payload).execute()
-            return True
+            r = client.table("perfiles").select("id").eq("email", clean_email).execute()
+            if r.data and len(r.data) > 0:
+                target_uuid = r.data[0]["id"]
         except Exception:
             pass
-    
-    # Respaldo en memoria de sesión si la tabla aún no fue creada en Supabase
-    if "historial_local" not in st.session_state:
-        st.session_state.historial_local = []
-    st.session_state.historial_local.insert(0, payload)
+
+    # 1. Guardar en Supabase pliegos_historial
+    if client and target_uuid:
+        try:
+            client.table("pliegos_historial").insert({
+                "user_id": target_uuid,
+                "sheet_type": nombre_pliego,
+                "quantity": int(cant_pliegos),
+                "format": formato,
+                "created_at": ahora_iso
+            }).execute()
+        except Exception as err:
+            print(f"Error insertando historial en Supabase: {err}")
+
+    # 2. Guardar en local_db.json como respaldo permanente en disco
+    try:
+        db = _load_local_db()
+        unlocked = db.setdefault("unlocked", [])
+        unlocked.insert(0, {
+            "user_id": user_id or target_uuid or "",
+            "email": clean_email,
+            "nombre_pliego": nombre_pliego,
+            "sheet_type": nombre_pliego,
+            "cant_pliegos": int(cant_pliegos),
+            "quantity": int(cant_pliegos),
+            "formato": formato,
+            "format": formato,
+            "created_at": ahora_iso
+        })
+        _save_local_db(db)
+    except Exception:
+        pass
+
     return True
 
 
-def obtener_historial_desbloqueados(user_id: str) -> List[Dict[str, Any]]:
+def obtener_historial_desbloqueados(user_id: str, email: Optional[str] = None) -> List[Dict[str, Any]]:
     """
     Retorna la lista de pliegos desbloqueados por el usuario para su re-descarga.
+    Consulta en Supabase y consolida con el respaldo local persistente.
     """
-    if not user_id:
+    if not user_id and not email:
         return []
+    
     client = get_supabase()
-    items = []
-    if client:
+    items: List[Dict[str, Any]] = []
+    clean_email = email.strip().lower() if email else ""
+
+    target_uuid = user_id if (user_id and "-" in str(user_id)) else None
+    if client and not target_uuid and clean_email:
         try:
-            resp = client.table("pliegos_historial").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
-            if resp.data:
-                items = resp.data
+            r = client.table("perfiles").select("id").eq("email", clean_email).execute()
+            if r.data and len(r.data) > 0:
+                target_uuid = r.data[0]["id"]
         except Exception:
             pass
 
-    # Combinar con los registros de la sesión local
-    if "historial_local" in st.session_state:
-        for loc in st.session_state.historial_local:
-            if loc not in items:
-                items.append(loc)
+    # 1. Consultar en Supabase
+    if client and target_uuid:
+        try:
+            resp = client.table("pliegos_historial").select("*").eq("user_id", target_uuid).order("created_at", desc=True).execute()
+            if resp.data:
+                for r in resp.data:
+                    items.append({
+                        "id": r.get("id"),
+                        "user_id": r.get("user_id"),
+                        "nombre_pliego": r.get("sheet_type") or "Pliego DTF",
+                        "sheet_type": r.get("sheet_type") or "Pliego DTF",
+                        "cant_pliegos": r.get("quantity", 1),
+                        "quantity": r.get("quantity", 1),
+                        "formato": r.get("format", "PNG 300 DPI"),
+                        "format": r.get("format", "PNG 300 DPI"),
+                        "created_at": r.get("created_at", "")
+                    })
+        except Exception as err:
+            print(f"Error consultando historial en Supabase: {err}")
 
+    # 2. Combinar con registros de local_db.json
+    try:
+        db = _load_local_db()
+        for loc in db.get("unlocked", []):
+            match_uid = user_id and loc.get("user_id") == user_id
+            match_uuid = target_uuid and loc.get("user_id") == target_uuid
+            match_email = clean_email and loc.get("email", "").lower() == clean_email
+            if match_uid or match_uuid or match_email:
+                f_loc = loc.get("created_at", "")[:16]
+                ya_esta = any(it.get("created_at", "")[:16] == f_loc for it in items)
+                if not ya_esta:
+                    items.append({
+                        "id": loc.get("id", ""),
+                        "user_id": loc.get("user_id", ""),
+                        "nombre_pliego": loc.get("nombre_pliego") or loc.get("sheet_type") or "Pliego DTF",
+                        "sheet_type": loc.get("nombre_pliego") or loc.get("sheet_type") or "Pliego DTF",
+                        "cant_pliegos": loc.get("cant_pliegos") or loc.get("quantity") or 1,
+                        "quantity": loc.get("cant_pliegos") or loc.get("quantity") or 1,
+                        "formato": loc.get("formato") or loc.get("format") or "PNG 300 DPI",
+                        "format": loc.get("formato") or loc.get("format") or "PNG 300 DPI",
+                        "created_at": loc.get("created_at", "")
+                    })
+    except Exception:
+        pass
+
+    # Ordenar por fecha descendente
+    items.sort(key=lambda x: str(x.get("created_at", "")), reverse=True)
     return items
 
 
