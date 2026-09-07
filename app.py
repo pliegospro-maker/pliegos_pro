@@ -919,18 +919,19 @@ with tab_armador:
         usable_sheet_w_px = max(100, gang_width_px - (2 * edge_margin_px))
         usable_sheet_h_px = max(100, gang_height_px - (2 * edge_margin_px) - header_h_px)
 
-        # Autoguardado continuo en tiempo real
-        try:
-            guardar_proyecto_actual(user_id, {
-                "sheet_choice": sheet_choice,
-                "margin_cm": margin_cm,
-                "use_edge_margins": use_edge_margins,
-                "use_header": use_header,
-                "header_text": header_client_text,
-                "imagenes_cargadas": list(st.session_state.image_history.keys())
-            })
-        except Exception:
-            pass
+        # Autoguardado continuo en tiempo real (únicamente si hay imágenes o diseños cargados)
+        if st.session_state.image_history and len(st.session_state.image_history) > 0:
+            try:
+                guardar_proyecto_actual(user_id, {
+                    "sheet_choice": sheet_choice,
+                    "margin_cm": margin_cm,
+                    "use_edge_margins": use_edge_margins,
+                    "use_header": use_header,
+                    "header_text": header_client_text,
+                    "imagenes_cargadas": list(st.session_state.image_history.keys())
+                })
+            except Exception:
+                pass
 
         st.markdown("<h3 class='section-title'>2. Cargar Diseños</h3>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(

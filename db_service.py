@@ -350,10 +350,14 @@ def adjust_user_credits(email_or_id: str, delta: int) -> int:
 
 def guardar_proyecto_actual(user_id: str, datos: Dict[str, Any]) -> bool:
     """
-    Persiste el estado actual de la sesión del usuario.
+    Persiste el estado actual de la sesión del usuario únicamente si tiene imágenes cargadas.
     """
-    if not user_id:
+    if not user_id or not datos:
         return False
+    # No guardar proyectos vacíos sin diseños
+    if not datos.get("imagenes_cargadas") or len(datos.get("imagenes_cargadas")) == 0:
+        return False
+
     ahora_iso = datetime.now(timezone.utc).isoformat()
     client = get_supabase()
     if client:
@@ -382,7 +386,7 @@ def guardar_proyecto_actual(user_id: str, datos: Dict[str, Any]) -> bool:
 
 def obtener_proyecto_reciente(user_id: str, max_horas: int = 2) -> Optional[Tuple[Dict[str, Any], int]]:
     """
-    Verifica si existe un proyecto pendiente guardado hace menos de max_horas.
+    Verifica si existe un proyecto pendiente guardado hace menos de max_horas con imágenes reales.
     Retorna (datos_dict, minutos_transcurridos) o None si no hay o expiró.
     """
     if not user_id:
@@ -401,7 +405,8 @@ def obtener_proyecto_reciente(user_id: str, max_horas: int = 2) -> Optional[Tupl
             if delta < timedelta(hours=max_horas):
                 minutos = max(1, int(delta.total_seconds() / 60))
                 datos = json.loads(reg["estado_json"])
-                return datos, minutos
+                if datos.get("imagenes_cargadas") and len(datos.get("imagenes_cargadas")) > 0:
+                    return datos, minutos
     except Exception:
         pass
 
@@ -416,7 +421,9 @@ def obtener_proyecto_reciente(user_id: str, max_horas: int = 2) -> Optional[Tupl
             delta = ahora - fecha_guardado
             if delta < timedelta(hours=max_horas):
                 minutos = max(1, int(delta.total_seconds() / 60))
-                return proj["datos"], minutos
+                datos = proj.get("datos", {})
+                if datos.get("imagenes_cargadas") and len(datos.get("imagenes_cargadas")) > 0:
+                    return datos, minutos
         except Exception:
             pass
     return None
