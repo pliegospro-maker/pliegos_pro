@@ -289,11 +289,16 @@ def set_user_credits(email_or_id: str, creditos: int) -> bool:
     client = get_supabase()
     if client:
         try:
-            client.table("perfiles").update({"creditos": creditos}).eq("email", clean_target).execute()
-        except Exception:
-            pass
-        try:
-            client.table("perfiles").update({"creditos": creditos}).eq("id", clean_target).execute()
+            res = client.table("perfiles").select("id").eq("email", clean_target).execute()
+            if res.data and len(res.data) > 0:
+                client.table("perfiles").update({"creditos": creditos}).eq("email", clean_target).execute()
+            else:
+                import uuid
+                client.table("perfiles").insert({
+                    "id": str(uuid.uuid4()),
+                    "email": clean_target,
+                    "creditos": creditos
+                }).execute()
         except Exception:
             pass
 
@@ -533,15 +538,17 @@ def get_all_users_summary() -> List[Dict[str, Any]]:
 
     if client:
         try:
-            resp = client.table("perfiles").select("*").order("created_at", desc=True).execute()
+            resp = client.table("perfiles").select("*").execute()
             if resp.data:
                 for row in resp.data:
                     users_list.append({
                         "id": row.get("id", ""),
                         "email": row.get("email", ""),
                         "creditos": int(row.get("creditos", 0)),
-                        "created_at": row.get("created_at", "")
+                        "created_at": row.get("created_at") or row.get("vencimiento") or ""
                     })
+                # Ordenar por créditos o fecha si está disponible
+                users_list.sort(key=lambda x: (x.get("creditos", 0), x.get("email", "")), reverse=True)
                 return users_list
         except Exception:
             pass
