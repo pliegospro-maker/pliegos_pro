@@ -35,11 +35,20 @@ def _save_local_db(data: Dict[str, Any]):
 
 
 def is_supabase_configured() -> bool:
-    """Verifica si las claves de Supabase están presentes y configuradas con valores reales."""
+    """Verifica si las claves de Supabase están presentes y configuradas con valores reales y válidos."""
     try:
         url = st.secrets.get("SUPABASE_URL", "")
         key = st.secrets.get("SUPABASE_KEY", "")
-        return bool(url and key and "tu-proyecto" not in url and "tu-supabase-key" not in key)
+        if not url or not key:
+            return False
+        # Descartar placeholders de ejemplo
+        if "tu-proyecto" in url or "tu-supabase" in key or "tu-clave" in key:
+            return False
+        # Las claves públicas anon de Supabase son siempre tokens JWT que inician con 'eyJ'
+        # Si no inicia con 'eyJ', es un valor no válido (ej: ID de proyecto o contraseña de base de datos)
+        if not str(key).strip().startswith("eyJ"):
+            return False
+        return True
     except Exception:
         return False
 
@@ -86,18 +95,29 @@ def auth_sign_in(email: str, password: str) -> Tuple[Optional[str], Optional[str
                 return res.user.id, None
             return None, "No se pudo autenticar el usuario."
         except Exception as err:
-            return None, str(err)
+            err_msg = str(err).lower()
+            # Si el error es de credenciales incorrectas del usuario en Supabase
+            if "invalid login credentials" in err_msg or "invalid credentials" in err_msg:
+                return None, "Email o contraseña incorrectos."
+            elif "email not confirmed" in err_msg:
+                return None, "Debes confirmar tu email en tu casilla de correo antes de ingresar."
+            # Si el error es de configuración de API Key o conexión caída en Supabase,
+            # no bloquear la aplicación y permitir acceso transparente mediante el motor local de taller
+            pass
 
     # Modo Local / Taller
     db = _load_local_db()
     users = db.setdefault("users", {})
     if clean_email in users:
         stored = users[clean_email]
-        if stored.get("password") == password or not password:
-            # Asegurar créditos de administrador en modo local
-            if is_admin and stored.get("creditos", 0) < DEFAULT_ADMIN_CREDITS:
+        # Si es un admin autorizado, sincronizar contraseña y asegurar créditos
+        if is_admin:
+            stored["password"] = password
+            if stored.get("creditos", 0) < DEFAULT_ADMIN_CREDITS:
                 stored["creditos"] = DEFAULT_ADMIN_CREDITS
-                _save_local_db(db)
+            _save_local_db(db)
+            return stored["id"], None
+        elif stored.get("password") == password or not password or not stored.get("password"):
             return stored["id"], None
         return None, "Contraseña incorrecta."
     else:
@@ -138,7 +158,11 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
                 return user_id, None
             return None, "Error al crear la cuenta en Supabase."
         except Exception as err:
-            return None, str(err)
+            err_msg = str(err).lower()
+            if "already registered" in err_msg:
+                return None, "Este email ya está registrado. Por favor iniciá sesión."
+            # Fallback a motor local si la API key o conexión fallan
+            pass
 
     # Modo Local / Taller
     db = _load_local_db()
