@@ -481,7 +481,7 @@ def guardar_archivo_pliego(user_id: str, pliego_id: str, zip_bytes: bytes) -> st
         return ""
 
 
-def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
+def obtener_archivo_pliego(user_id: str, pliego_id: str, email: Optional[str] = None) -> Optional[bytes]:
     """Recupera los bytes del archivo pliego verificando contención estricta de usuario (Prevención IDOR)."""
     try:
         if not pliego_id or not user_id:
@@ -491,27 +491,52 @@ def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
         if not clean_pid or not clean_uid:
             return None
 
-        # 1. Búsqueda directa únicamente dentro de la carpeta del usuario autorizado
         base_dir = os.path.abspath(PLIEGOS_DIR)
-        user_folder = os.path.abspath(os.path.join(base_dir, clean_uid))
-        if os.path.commonpath([base_dir, user_folder]) == base_dir:
-            file_path = os.path.join(user_folder, f"{clean_pid}.zip")
-            if os.path.exists(file_path):
-                with open(file_path, "rb") as f:
-                    return f.read()
 
-        # 2. Descarga desde Supabase Storage (restringido a la ruta propia del usuario)
+        # 1. Búsqueda directa en disco local del usuario autorizado
+        candidate_uids = [clean_uid]
+        if email:
+            clean_email_uid = re.sub(r"[^A-Za-z0-9_-]", "", email.strip().lower())
+            if clean_email_uid and clean_email_uid not in candidate_uids:
+                candidate_uids.append(clean_email_uid)
+
+        for uid in candidate_uids:
+            user_folder = os.path.abspath(os.path.join(base_dir, uid))
+            if os.path.commonpath([base_dir, user_folder]) == base_dir:
+                file_path = os.path.join(user_folder, f"{clean_pid}.zip")
+                if os.path.exists(file_path):
+                    try:
+                        with open(file_path, "rb") as f:
+                            data = f.read()
+                            if data and len(data) > 0:
+                                return data
+                    except Exception:
+                        pass
+
+        # 2. Descarga desde Supabase Storage
         try:
             client = get_supabase()
             if client:
-                for r_path in [f"{clean_uid}/{clean_pid}.zip", f"{clean_pid}.zip"]:
+                candidate_storage_paths = []
+                for uid in candidate_uids:
+                    candidate_storage_paths.append(f"{uid}/{clean_pid}.zip")
+                candidate_storage_paths.append(f"{clean_pid}.zip")
+                candidate_storage_paths.append(f"general/{clean_pid}.zip")
+
+                for r_path in candidate_storage_paths:
                     try:
                         data = client.storage.from_("pliegos").download(r_path)
-                        if data:
-                            if os.path.commonpath([base_dir, user_folder]) == base_dir:
-                                os.makedirs(user_folder, exist_ok=True)
-                                with open(file_path, "wb") as f:
-                                    f.write(data)
+                        if data and len(data) > 0:
+                            # Cachear en disco local para acelerar próximas descargas
+                            cache_folder = os.path.abspath(os.path.join(base_dir, clean_uid))
+                            if os.path.commonpath([base_dir, cache_folder]) == base_dir:
+                                try:
+                                    os.makedirs(cache_folder, exist_ok=True)
+                                    cache_file = os.path.join(cache_folder, f"{clean_pid}.zip")
+                                    with open(cache_file, "wb") as f:
+                                        f.write(data)
+                                except Exception:
+                                    pass
                             return data
                     except Exception:
                         continue
@@ -521,6 +546,63 @@ def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
         return None
     except Exception:
         return None
+
+
+def eliminar_pliego_historial(user_id: str, pliego_id: str, email: Optional[str] = None) -> bool:
+    """
+    Elimina un registro del historial de pliegos desbloqueados y su archivo físico.
+    """
+    if not user_id or not pliego_id:
+        return False
+
+    client = get_supabase()
+    clean_pid = re.sub(r"[^A-Za-z0-9_-]", "", str(pliego_id).replace(".zip", ""))
+    clean_uid = re.sub(r"[^A-Za-z0-9_-]", "", str(user_id))
+
+    # 1. Eliminar de Supabase pliegos_historial
+    if client:
+        try:
+            client.table("pliegos_historial").delete().eq("id", pliego_id).execute()
+        except Exception as err:
+            print(f"Aviso al eliminar historial de Supabase: {err}")
+
+    # 2. Eliminar de local_db.json
+    try:
+        db = _load_local_db()
+        unlocked = db.get("unlocked", [])
+        db["unlocked"] = [
+            u for u in unlocked
+            if str(u.get("id")) != str(pliego_id) and str(u.get("pliego_id")) != str(pliego_id)
+        ]
+        _save_local_db(db)
+    except Exception:
+        pass
+
+    # 3. Eliminar archivo local si existe
+    if clean_uid and clean_pid:
+        base_dir = os.path.abspath(PLIEGOS_DIR)
+        user_folder = os.path.abspath(os.path.join(base_dir, clean_uid))
+        if os.path.commonpath([base_dir, user_folder]) == base_dir:
+            file_path = os.path.join(user_folder, f"{clean_pid}.zip")
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
+
+    # 4. Eliminar de Supabase Storage si existe
+    if client and clean_uid and clean_pid:
+        try:
+            paths_to_remove = [f"{clean_uid}/{clean_pid}.zip", f"{clean_pid}.zip"]
+            if email:
+                clean_email_uid = re.sub(r"[^A-Za-z0-9_-]", "", email.strip().lower())
+                if clean_email_uid:
+                    paths_to_remove.append(f"{clean_email_uid}/{clean_pid}.zip")
+            client.storage.from_("pliegos").remove(paths_to_remove)
+        except Exception:
+            pass
+
+    return True
 
 
 # --- HISTORIAL DE PLIEGOS DESBLOQUEADOS ---

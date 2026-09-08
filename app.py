@@ -78,7 +78,8 @@ from db_service import (
     adjust_user_credits,
     get_supabase,
     obtener_archivo_pliego,
-    guardar_archivo_pliego
+    guardar_archivo_pliego,
+    eliminar_pliego_historial
 )
 from payment_service import (
     create_mp_preference,
@@ -565,12 +566,13 @@ with tab_historial:
                     st.markdown(f"**Pliegos:** `{item.get('cant_pliegos', 1)}`")
                 with h_col3:
                     pliego_id = item.get("pliego_id") or item.get("id") or f"pliego_{idx}"
-                    archivo_pliego_bytes = obtener_archivo_pliego(item.get("user_id") or user_id, pliego_id)
+                    target_uid = item.get("user_id") or user_id
+                    archivo_pliego_bytes = obtener_archivo_pliego(target_uid, pliego_id, email=email_usuario)
 
-                    # Si el archivo está en memoria activa (recién calculado/desbloqueado), persistirlo en disco
+                    # Si el archivo está en memoria activa (recién calculado/desbloqueado), persistirlo
                     if archivo_pliego_bytes is None and st.session_state.get("zip_final_alta") is not None and idx == 0:
                         archivo_pliego_bytes = st.session_state.zip_final_alta
-                        guardar_archivo_pliego(item.get("user_id") or user_id, pliego_id, archivo_pliego_bytes)
+                        guardar_archivo_pliego(target_uid, pliego_id, archivo_pliego_bytes)
 
                     if archivo_pliego_bytes is not None:
                         st.download_button(
@@ -584,7 +586,12 @@ with tab_historial:
                         )
                     else:
                         st.caption("✅ Desbloqueado con créditos")
-                        st.caption("💡 *Podés volver a descargarlo armando tu pliego en el Diseñador.*")
+                        st.caption("💡 *Generado en sesión previa.*")
+
+                    if st.button("🗑️ Quitar", key=f"del_hist_{pliego_id}_{idx}", help="Eliminar este pliego del historial", use_container_width=True):
+                        eliminar_pliego_historial(target_uid, pliego_id, email=email_usuario)
+                        st.toast("🗑️ Pliego eliminado del historial.")
+                        st.rerun()
                 st.divider()
 
 

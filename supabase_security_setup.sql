@@ -143,6 +143,16 @@ FOR INSERT
 TO authenticated
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "pliegos_historial_delete_own" ON public.pliegos_historial;
+CREATE POLICY "pliegos_historial_delete_own"
+ON public.pliegos_historial
+FOR DELETE
+TO authenticated
+USING (
+    auth.uid() = user_id
+    OR auth.jwt() ->> 'email' IN ('paqueteimpresiones@gmail.com', 'pliegospro@gmail.com', 'admin@pliegospro.com')
+);
+
 
 -- 7. POLÍTICAS DE RLS PARA TABLA PROYECTOS_GUARDADOS
 -- ------------------------------------------------------------------------------
@@ -154,6 +164,46 @@ TO authenticated
 USING (auth.uid() = user_id)
 WITH CHECK (auth.uid() = user_id);
 
+-- 8. POLÍTICAS DE ALMACENAMIENTO PERSISTENTE PARA STORAGE (BUCKET 'pliegos')
+-- ------------------------------------------------------------------------------
+-- Asegurar que el bucket 'pliegos' exista y esté configurado
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('pliegos', 'pliegos', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Permitir lectura y descarga de archivos de pliegos
+DROP POLICY IF EXISTS "pliegos_storage_select" ON storage.objects;
+CREATE POLICY "pliegos_storage_select"
+ON storage.objects
+FOR SELECT
+TO public, authenticated, anon
+USING (bucket_id = 'pliegos');
+
+-- Permitir subida y persistencia de archivos de pliegos generados
+DROP POLICY IF EXISTS "pliegos_storage_insert" ON storage.objects;
+CREATE POLICY "pliegos_storage_insert"
+ON storage.objects
+FOR INSERT
+TO public, authenticated, anon
+WITH CHECK (bucket_id = 'pliegos');
+
+-- Permitir actualización (upsert) de pliegos
+DROP POLICY IF EXISTS "pliegos_storage_update" ON storage.objects;
+CREATE POLICY "pliegos_storage_update"
+ON storage.objects
+FOR UPDATE
+TO public, authenticated, anon
+USING (bucket_id = 'pliegos')
+WITH CHECK (bucket_id = 'pliegos');
+
+-- Permitir eliminación de archivos de pliegos en Storage
+DROP POLICY IF EXISTS "pliegos_storage_delete" ON storage.objects;
+CREATE POLICY "pliegos_storage_delete"
+ON storage.objects
+FOR DELETE
+TO public, authenticated, anon
+USING (bucket_id = 'pliegos');
+
 -- ==============================================================================
--- ¡Configuración completada! Ahora tu base de datos de Supabase está blindada.
+-- ¡Configuración completada! Ahora tu base de datos y Storage están blindados.
 -- ==============================================================================
