@@ -17,7 +17,9 @@ from config import (
     MP_LINK_PROMO_5100,
     WEBHOOK_MAKE_MP,
     WEBHOOK_MAKE_PAYPAL,
-    PAYPAL_BUSINESS_EMAIL
+    PAYPAL_BUSINESS_EMAIL,
+    get_base_app_url,
+    DEFAULT_BASE_APP_URL
 )
 
 
@@ -34,7 +36,7 @@ def create_mp_preference(
     user_id: str,
     creditos_cant: int,
     unit_price: float = PRECIO_CREDITO_ARS,
-    base_url: str = "https://pliegospro.streamlit.app/",
+    base_url: Optional[str] = None,
     promo_code: Optional[str] = None,
     partner_name: Optional[str] = None,
     commission_total: float = 0.0
@@ -47,6 +49,8 @@ def create_mp_preference(
     sdk = get_mp_sdk()
     if not sdk or creditos_cant <= 0:
         return None
+
+    actual_base_url = (base_url or get_base_app_url()).rstrip("/") + "/"
 
     try:
         titulo = f"{creditos_cant} Crédito{'s' if creditos_cant > 1 else ''} PliegosPro"
@@ -74,9 +78,9 @@ def create_mp_preference(
                 }
             ],
             "back_urls": {
-                "success": base_url,
-                "pending": base_url,
-                "failure": base_url
+                "success": actual_base_url,
+                "pending": actual_base_url,
+                "failure": actual_base_url
             },
             "auto_return": "approved",
             "external_reference": ext_ref,
@@ -195,6 +199,7 @@ def render_payment_cards(
         components.html(mp_html, height=185)
 
     with col_pp:
+        base_app_url = get_base_app_url().rstrip("/") + "/"
         paypal_html = f"""
         <style>
             body {{ margin: 0; padding: 0; overflow: hidden; font-family: system-ui, -apple-system, sans-serif; }}
@@ -255,8 +260,8 @@ def render_payment_cards(
                 <input type="hidden" name="currency_code" value="USD">
                 <input type="hidden" name="custom" value="{email_usuario}">
                 <input type="hidden" name="notify_url" value="{WEBHOOK_MAKE_PAYPAL}">
-                <input type="hidden" name="return" value="https://pliegospro.streamlit.app/">
-                <input type="hidden" name="cancel_return" value="https://pliegospro.streamlit.app/">
+                <input type="hidden" name="return" value="{base_app_url}">
+                <input type="hidden" name="cancel_return" value="{base_app_url}">
                 <button type="submit" class="pp-button">
                     <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" height="20" style="margin:0;">
                     Recargar con PayPal

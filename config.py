@@ -43,6 +43,19 @@ PRECIO_CREDITO_USD = 4.00
 MP_LINK_ESTANDAR_6000 = "https://mpago.li/2fKJWKF"   # Pliego estándar sin descuento ($6.000 ARS)
 MP_LINK_PROMO_5100 = "https://mpago.li/2cZP9dh"      # Pliego con 15% OFF ($5.100 ARS) - Promo Gráficas Aliadas
 
+# --- URL BASE OFICIAL DE LA APLICACIÓN ---
+DEFAULT_BASE_APP_URL = "https://pliegos-pro.streamlit.app"
+
+def get_base_app_url() -> str:
+    """Retorna la URL pública oficial de la aplicación, configurable mediante st.secrets."""
+    try:
+        import streamlit as st
+        url = st.secrets.get("BASE_APP_URL", DEFAULT_BASE_APP_URL)
+        return str(url).strip().rstrip("/")
+    except Exception:
+        return DEFAULT_BASE_APP_URL
+
+
 # --- PROGRAMA DE AFILIADOS Y GRÁFICAS ALIADAS ---
 PARTNERS_FILE = "partners_data.json"
 

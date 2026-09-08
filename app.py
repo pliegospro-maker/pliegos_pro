@@ -46,7 +46,8 @@ from config import (
     HEADER_HEIGHT_CM,
     MP_LINK_ESTANDAR_6000,
     MP_LINK_PROMO_5100,
-    ADMIN_EMAILS
+    ADMIN_EMAILS,
+    get_base_app_url
 )
 from image_ops import (
     get_preview_with_bg,
@@ -706,7 +707,7 @@ with tab_partners:
             st.success(f"👋 **¡Hola {p_stats['partner_name']}!** Estas son tus estadísticas en vivo:")
 
             # Link Mágico para compartir
-            base_app_url = "https://pliegospro.streamlit.app"
+            base_app_url = get_base_app_url()
             magic_url = f"{base_app_url}/?ref={p_stats['code']}"
 
             st.info(f"""
