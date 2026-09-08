@@ -50,10 +50,11 @@ def get_base_app_url() -> str:
     """Retorna la URL pública oficial de la aplicación, configurable mediante st.secrets."""
     try:
         import streamlit as st
-        url = st.secrets.get("BASE_APP_URL", DEFAULT_BASE_APP_URL)
-        return str(url).strip().rstrip("/")
+        if hasattr(st, "secrets") and "BASE_APP_URL" in st.secrets:
+            return str(st.secrets["BASE_APP_URL"]).strip().rstrip("/")
     except Exception:
-        return DEFAULT_BASE_APP_URL
+        pass
+    return DEFAULT_BASE_APP_URL
 
 
 # --- PROGRAMA DE AFILIADOS Y GRÁFICAS ALIADAS ---

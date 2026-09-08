@@ -13,23 +13,14 @@ import streamlit.components.v1 as components
 from PIL import Image
 from streamlit_cropper import st_cropper
 from streamlit_drawable_canvas import st_canvas
-import importlib
-
 # --- IMPORTACIÓN DE MÓDULOS DEL SISTEMA ---
 import config
-importlib.reload(config)
 import payment_service
-importlib.reload(payment_service)
 import partner_service
-importlib.reload(partner_service)
 import nesting
-importlib.reload(nesting)
 import db_service
-importlib.reload(db_service)
 import image_ops
-importlib.reload(image_ops)
 import catalog_service
-importlib.reload(catalog_service)
 
 from config import (
     CUSTOM_CSS,
