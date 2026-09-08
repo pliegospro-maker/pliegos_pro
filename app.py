@@ -14,6 +14,7 @@ from PIL import Image
 from streamlit_cropper import st_cropper
 from streamlit_drawable_canvas import st_canvas
 # --- IMPORTACIÓN DE MÓDULOS DEL SISTEMA ---
+import importlib
 import config
 import payment_service
 import partner_service
@@ -21,6 +22,13 @@ import nesting
 import db_service
 import image_ops
 import catalog_service
+
+# Recarga defensiva en caso de que Streamlit Cloud mantenga en memoria una versión previa
+if not hasattr(db_service, "eliminar_pliego_historial"):
+    try:
+        importlib.reload(db_service)
+    except Exception:
+        pass
 
 from config import (
     CUSTOM_CSS,
@@ -60,27 +68,54 @@ from nesting import (
     generate_live_minimaps,
     build_final_packages
 )
-from db_service import (
-    auth_sign_in,
-    auth_sign_up,
-    get_user_credits,
-    deduct_credits_atomic,
-    guardar_proyecto_actual,
-    obtener_proyecto_reciente,
-    descartar_proyecto_guardado,
-    is_supabase_configured,
-    registrar_pliego_desbloqueado,
-    obtener_historial_desbloqueados,
-    get_user_tutorial_completed,
-    set_user_tutorial_completed,
-    get_all_users_summary,
-    set_user_credits,
-    adjust_user_credits,
-    get_supabase,
-    obtener_archivo_pliego,
-    guardar_archivo_pliego,
-    eliminar_pliego_historial
-)
+try:
+    from db_service import (
+        auth_sign_in,
+        auth_sign_up,
+        get_user_credits,
+        deduct_credits_atomic,
+        guardar_proyecto_actual,
+        obtener_proyecto_reciente,
+        descartar_proyecto_guardado,
+        is_supabase_configured,
+        registrar_pliego_desbloqueado,
+        obtener_historial_desbloqueados,
+        get_user_tutorial_completed,
+        set_user_tutorial_completed,
+        get_all_users_summary,
+        set_user_credits,
+        adjust_user_credits,
+        get_supabase,
+        obtener_archivo_pliego,
+        guardar_archivo_pliego,
+        eliminar_pliego_historial
+    )
+except ImportError:
+    try:
+        importlib.reload(db_service)
+    except Exception:
+        pass
+    from db_service import (
+        auth_sign_in,
+        auth_sign_up,
+        get_user_credits,
+        deduct_credits_atomic,
+        guardar_proyecto_actual,
+        obtener_proyecto_reciente,
+        descartar_proyecto_guardado,
+        is_supabase_configured,
+        registrar_pliego_desbloqueado,
+        obtener_historial_desbloqueados,
+        get_user_tutorial_completed,
+        set_user_tutorial_completed,
+        get_all_users_summary,
+        set_user_credits,
+        adjust_user_credits,
+        get_supabase,
+        obtener_archivo_pliego,
+        guardar_archivo_pliego
+    )
+    eliminar_pliego_historial = getattr(db_service, "eliminar_pliego_historial", lambda *a, **kw: False)
 from payment_service import (
     create_mp_preference,
     render_payment_cards
