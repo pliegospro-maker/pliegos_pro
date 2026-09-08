@@ -122,6 +122,12 @@ PAYPAL_BUSINESS_EMAIL = get_secret_or_default("PAYPAL_BUSINESS_EMAIL", "PLIEGOSP
 # --- ESTILOS CSS PERSONALIZADOS ---
 CUSTOM_CSS = """
 <style>
+/* 0. Forzar Fondo Negro / Dark Mode por Defecto */
+body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"], .main {
+    background-color: #080E15 !important;
+    color: #FFFFFF !important;
+}
+
 /* 1. Ocultar el Header de Streamlit manteniendo el botón de colapso de sidebar */
 header {
     visibility: hidden !important;
