@@ -5,6 +5,7 @@ catálogo de estampas segmentado y gestión de historial de compras.
 """
 
 import os
+import re
 from typing import List, Dict, Any
 import numpy as np
 import streamlit as st
@@ -159,16 +160,19 @@ if 'promo_commission_unit' not in st.session_state:
 
 # Detección automática de link de afiliado (?ref= o ?promo=)
 try:
-    url_ref = st.query_params.get("ref") or st.query_params.get("promo")
-    if url_ref and not st.session_state.promo_code_applied:
-        is_val, d_pct, d_price, p_comm, p_info, p_msg = validate_promo_code(url_ref, PRECIO_CREDITO_ARS)
-        if is_val and p_info:
-            st.session_state.promo_code_applied = p_info["code"]
-            st.session_state.promo_partner_info = p_info
-            st.session_state.promo_discount_pct = d_pct
-            st.session_state.promo_discounted_price = d_price
-            st.session_state.promo_commission_unit = p_comm
-            st.session_state.last_action_msg = p_msg
+    raw_ref = st.query_params.get("ref") or st.query_params.get("promo")
+    if raw_ref and isinstance(raw_ref, str):
+        # Sanitizar estrictamente: solo alfanuméricos, guiones y guiones bajos (3 a 25 caracteres)
+        clean_ref = re.sub(r'[^A-Za-z0-9_-]', '', raw_ref.strip())[:25]
+        if len(clean_ref) >= 3 and not st.session_state.promo_code_applied:
+            is_val, d_pct, d_price, p_comm, p_info, p_msg = validate_promo_code(clean_ref, PRECIO_CREDITO_ARS)
+            if is_val and p_info:
+                st.session_state.promo_code_applied = p_info["code"]
+                st.session_state.promo_partner_info = p_info
+                st.session_state.promo_discount_pct = d_pct
+                st.session_state.promo_discounted_price = d_price
+                st.session_state.promo_commission_unit = p_comm
+                st.session_state.last_action_msg = p_msg
 except Exception:
     pass
 
@@ -442,7 +446,7 @@ if st.session_state.get("promo_code_applied"):
 
 # --- 5. NAVEGACIÓN PRINCIPAL EN PESTAÑAS ---
 admin_emails_clean = [e.lower().strip() for e in ADMIN_EMAILS]
-is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean) or st.session_state.get("admin_catalogo_activo", False)
+is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean)
 
 if is_admin:
     tab_armador, tab_catalogo, tab_historial, tab_partners, tab_admin_users = st.tabs([
@@ -466,7 +470,7 @@ else:
 # =========================================================================
 with tab_catalogo:
     admin_emails_clean = [e.lower().strip() for e in ADMIN_EMAILS]
-    is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean) or st.session_state.get("admin_catalogo_activo", False)
+    is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean)
 
     cat_top1, cat_top2 = st.columns([3, 1])
     with cat_top1:
@@ -479,7 +483,7 @@ with tab_catalogo:
             st.session_state.last_action_msg = "🔄 Catálogo actualizado."
             st.rerun()
 
-    # Panel de Administración: Solo visible para vos (el administrador del taller)
+    # Panel de Administración: Solo visible para vos (el administrador del taller autenticado)
     if is_admin:
         st.info("🛡️ **Panel Administrador:** Tenés permisos de gestión sobre el catálogo público de la plataforma.")
         with st.expander("📤 Subir Nuevos Diseños al Catálogo Público", expanded=False):
@@ -498,17 +502,6 @@ with tab_catalogo:
                     sub_label = f" en '{dest_subfolder}'" if dest_subfolder.strip() else ""
                     st.session_state.last_action_msg = f"✅ Se agregaron {len(new_cat_files)} diseños al catálogo{sub_label}."
                     st.rerun()
-    else:
-        # Acceso discreto para desbloquear permisos si ingresás desde otra cuenta o dispositivo
-        with st.expander("🔒 ¿Sos Administrador del Taller?", expanded=False):
-            admin_pin = st.text_input("Ingresá el PIN de taller para gestionar el catálogo:", type="password", key="pin_admin_catalogo")
-            if st.button("Desbloquear Panel Admin", key="btn_unlock_admin"):
-                if admin_pin in ["pliegos2026", "admin123"]:
-                    st.session_state.admin_catalogo_activo = True
-                    st.session_state.last_action_msg = "🛡️ Modo Administrador desbloqueado."
-                    st.rerun()
-                else:
-                    st.error("PIN incorrecto.")
 
     st.markdown("---")
     cat_tabs = st.tabs(list(CATALOGO_CATEGORIAS.values()))
@@ -611,7 +604,7 @@ with tab_partners:
     st.markdown("Espacio exclusivo para talleres y gráficas aliadas de PliegosPro.")
 
     admin_emails_clean = [e.lower().strip() for e in ADMIN_EMAILS]
-    is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean) or st.session_state.get("admin_catalogo_activo", False)
+    is_admin = bool(email_usuario and email_usuario.lower().strip() in admin_emails_clean)
 
     if is_admin:
         st.info("🛡️ **Panel Maestro de Administración:** Podés dar de alta nuevas gráficas aliadas, consultar comisiones acumuladas y gestionar liquidaciones.")
@@ -698,11 +691,11 @@ with tab_partners:
 
     st.markdown("---")
     st.markdown("#### 🔍 Portal Privado para Gráficas Aliadas")
-    st.caption("Si sos dueño/a de una gráfica aliada, ingresá tu Código o PIN para ver tus pliegos acumulados y comisiones:")
+    st.caption("Si sos dueño/a de una gráfica aliada, ingresá tu PIN privado de acceso para consultar tus pliegos acumulados y comisiones:")
 
     col_s1, col_s2 = st.columns([3, 1])
     with col_s1:
-        partner_search = st.text_input("Código de partner o PIN de acceso:", placeholder="Ingresá tu código o PIN asignado", key="search_partner_input").strip()
+        partner_search = st.text_input("PIN Privado de Acceso:", type="password", placeholder="Ingresá tu PIN privado de gráfica", key="search_partner_input").strip()
     with col_s2:
         st.markdown("<br>", unsafe_allow_html=True)
         st.button("Consultar Métricas", key="btn_search_partner", use_container_width=True)
@@ -990,6 +983,8 @@ with tab_armador:
                     try:
                         img_loaded = Image.open(file)
                         init_image_entry(st.session_state.image_history, file.name, img_loaded)
+                    except Image.DecompressionBombError:
+                        st.error(f"⚠️ El archivo '{file.name}' excede el límite máximo de resolución permitido por seguridad.")
                     except Exception as e:
                         st.error(f"Error al abrir {file.name}: {e}")
 

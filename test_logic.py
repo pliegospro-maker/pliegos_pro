@@ -156,14 +156,15 @@ try:
     )
     assert conv_ok is True, "Falló el guardado de la conversión"
 
-    stats = get_partner_stats("CUARTOCOLOR15")
-    assert stats is not None, "No se encontraron estadísticas para CUARTOCOLOR15"
-    assert stats["total_pliegos"] >= 2, "La cantidad de pliegos debe ser al menos 2"
-    assert stats["total_comision"] >= 5100.0, "La comisión acumulada debe reflejar la venta"
+    # Búsqueda por código promocional público debe ser rechazada por seguridad (A3)
+    stats_public = get_partner_stats("CUARTOCOLOR15")
+    assert stats_public is None, "Por seguridad no debe permitir ver métricas con el código público"
 
-    # Búsqueda por PIN de partner
+    # Búsqueda por PIN privado de partner
     stats_pin = get_partner_stats("cuarto2026")
     assert stats_pin is not None and stats_pin["code"] == "CUARTOCOLOR15", "La búsqueda por PIN debe encontrar al partner"
+    assert stats_pin["total_pliegos"] >= 2, "La cantidad de pliegos debe ser al menos 2"
+    assert stats_pin["total_comision"] >= 5100.0, "La comisión acumulada debe reflejar la venta"
 
     # Reporte consolidado maestro
     summary = get_all_partners_summary()

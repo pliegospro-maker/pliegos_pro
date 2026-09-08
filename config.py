@@ -68,18 +68,42 @@ EXPORT_FORMATS = [
 ]
 
 # --- ADMINISTRADORES AUTORIZADOS ---
-ADMIN_EMAILS = [
-    "paqueteimpresiones@gmail.com",
-    "pliegospro@gmail.com",
-    "admin@pliegospro.com"
-]
+def get_admin_emails() -> list:
+    """Obtiene la lista de administradores desde st.secrets o fallback controlado."""
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and "ADMIN_EMAILS" in st.secrets:
+            val = st.secrets["ADMIN_EMAILS"]
+            if isinstance(val, list):
+                return [str(e).lower().strip() for e in val]
+            elif isinstance(val, str):
+                return [e.lower().strip() for e in val.split(",") if e.strip()]
+    except Exception:
+        pass
+    return [
+        "paqueteimpresiones@gmail.com",
+        "pliegospro@gmail.com",
+        "admin@pliegospro.com"
+    ]
+
+ADMIN_EMAILS = get_admin_emails()
 
 # --- INTEGRACIONES Y ASISTENCIA ---
-WEBHOOK_MAKE_MP = "https://hook.us2.make.com/r5og8gzq9xaj9vwbma93aff51ahsx5jb"
-WEBHOOK_MAKE_PAYPAL = "https://hook.us2.make.com/e1hpm35sdb5bmjv09kj9fiq4ztbj6atb"
-CHATBOT_IFRAME_URL = "https://www.chatbase.co/chatbot-iframe/qBw1nKTt9az-7COIOZRzd"
-SUPPORT_EMAIL = "pliegospro@gmail.com"
-PAYPAL_BUSINESS_EMAIL = "PLIEGOSPRO@GMAIL.COM"
+def get_secret_or_default(key: str, default_val: str) -> str:
+    """Obtiene una variable sensible desde st.secrets si existe, evitando quemar claves en el código."""
+    try:
+        import streamlit as st
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    return default_val
+
+WEBHOOK_MAKE_MP = get_secret_or_default("WEBHOOK_MAKE_MP", "https://hook.us2.make.com/r5og8gzq9xaj9vwbma93aff51ahsx5jb")
+WEBHOOK_MAKE_PAYPAL = get_secret_or_default("WEBHOOK_MAKE_PAYPAL", "https://hook.us2.make.com/e1hpm35sdb5bmjv09kj9fiq4ztbj6atb")
+CHATBOT_IFRAME_URL = get_secret_or_default("CHATBOT_IFRAME_URL", "https://www.chatbase.co/chatbot-iframe/qBw1nKTt9az-7COIOZRzd")
+SUPPORT_EMAIL = get_secret_or_default("SUPPORT_EMAIL", "pliegospro@gmail.com")
+PAYPAL_BUSINESS_EMAIL = get_secret_or_default("PAYPAL_BUSINESS_EMAIL", "PLIEGOSPRO@GMAIL.COM")
 
 # --- ESTILOS CSS PERSONALIZADOS ---
 CUSTOM_CSS = """

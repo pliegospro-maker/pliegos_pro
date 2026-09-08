@@ -5,7 +5,9 @@ descuento atómico mediante RPC y persistencia de proyectos (autoguardado).
 """
 
 import os
+import re
 import json
+import hashlib
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Tuple, Dict, Any, List
 import streamlit as st
@@ -32,6 +34,12 @@ def _save_local_db(data: Dict[str, Any]):
             json.dump(data, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
+
+
+def _hash_password(password: str) -> str:
+    """Genera un hash SHA-256 con salt para almacenamiento seguro en modo local."""
+    salt = "pliegos_pro_local_salt_v1"
+    return hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
 
 
 _SUPABASE_CLIENT_INSTANCE: Optional[Client] = None
@@ -95,72 +103,73 @@ def _get_admin_emails() -> List[str]:
 
 def auth_sign_in(email: str, password: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Inicia sesión con Supabase Auth si está configurado, o mediante la base local de taller.
+    Inicia sesión con Supabase Auth (producción) o base local (modo offline desarrollo).
+    Falla de manera estricta (fail-closed) si Supabase está activo.
     Retorna (user_id, None) en éxito o (None, error_msg) en fallo.
     """
-    client = get_supabase()
     clean_email = email.strip().lower()
-    admin_emails = _get_admin_emails()
-    is_admin = clean_email in admin_emails
+    if not clean_email or "@" not in clean_email or "." not in clean_email.split("@")[-1]:
+        return None, "Por favor ingresá un email válido."
+    if not password or len(password) < 6:
+        return None, "La contraseña debe tener al menos 6 caracteres."
 
-    if client:
+    # 1. Modo Producción / Supabase (Fail-closed)
+    if is_supabase_configured():
+        client = get_supabase()
+        if not client:
+            return None, "No se pudo establecer conexión segura con el servicio de autenticación."
         try:
             res = client.auth.sign_in_with_password({"email": clean_email, "password": password})
             if res.user:
                 return res.user.id, None
-            return None, "No se pudo autenticar el usuario."
+            return None, "Email o contraseña incorrectos."
         except Exception as err:
             err_msg = str(err).lower()
-            # Si el error es de credenciales incorrectas del usuario en Supabase
             if "invalid login credentials" in err_msg or "invalid credentials" in err_msg:
                 return None, "Email o contraseña incorrectos."
             elif "email not confirmed" in err_msg:
                 return None, "Debes confirmar tu email en tu casilla de correo antes de ingresar."
-            # Si el error es de configuración de API Key o conexión caída en Supabase,
-            # no bloquear la aplicación y permitir acceso transparente mediante el motor local de taller
-            pass
+            return None, f"Error al iniciar sesión: {err}"
 
-    # Modo Local / Taller
+    # 2. Modo Offline Local (Solo desarrollo cuando Supabase no está configurado)
     db = _load_local_db()
     users = db.setdefault("users", {})
-    if clean_email in users:
-        stored = users[clean_email]
-        # Si es un admin autorizado, sincronizar contraseña y asegurar créditos
-        if is_admin:
-            stored["password"] = password
-            if stored.get("creditos", 0) < DEFAULT_ADMIN_CREDITS:
-                stored["creditos"] = DEFAULT_ADMIN_CREDITS
+    if clean_email not in users:
+        return None, "Usuario no encontrado. Por favor registrate primero."
+
+    stored = users[clean_email]
+    hashed_input = _hash_password(password)
+    stored_pass = stored.get("password", "")
+
+    # Verificar hash SHA-256 o migrar si estaba en texto plano previo
+    if stored_pass == hashed_input or (stored_pass and stored_pass == password):
+        if stored_pass == password:
+            stored["password"] = hashed_input
             _save_local_db(db)
-            return stored["id"], None
-        elif stored.get("password") == password or not password or not stored.get("password"):
-            return stored["id"], None
-        return None, "Contraseña incorrecta."
-    else:
-        # Autoregistro ágil en modo local (Freemium: inicia con 0 créditos para evitar abusos)
-        new_id = f"local_{abs(hash(clean_email)) % 10000000}"
-        creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 0
-        users[clean_email] = {
-            "id": new_id,
-            "email": clean_email,
-            "password": password,
-            "creditos": creditos_ini,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        db["users"] = users
-        _save_local_db(db)
-        return new_id, None
+        return stored["id"], None
+
+    return None, "Email o contraseña incorrectos."
 
 
 def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str]]:
     """
     Crea una nueva cuenta y registra el perfil.
+    Falla de manera estricta si Supabase está activo y rechaza contraseñas débiles.
     """
-    client = get_supabase()
     clean_email = email.strip().lower()
+    if not clean_email or "@" not in clean_email or "." not in clean_email.split("@")[-1]:
+        return None, "Por favor ingresá un email válido."
+    if not password or len(password) < 6:
+        return None, "La contraseña debe tener al menos 6 caracteres."
+
     admin_emails = _get_admin_emails()
     is_admin = clean_email in admin_emails
 
-    if client:
+    # 1. Modo Producción / Supabase
+    if is_supabase_configured():
+        client = get_supabase()
+        if not client:
+            return None, "No se pudo conectar con el servicio de base de datos."
         try:
             res = client.auth.sign_up({"email": clean_email, "password": password})
             if res.user:
@@ -178,27 +187,25 @@ def auth_sign_up(email: str, password: str) -> Tuple[Optional[str], Optional[str
                 return None, "Este email ya está registrado. Por favor iniciá sesión."
             return None, f"Error en Supabase: {err}"
 
-    if is_supabase_configured():
-        return None, "No se pudo conectar con la base de datos Supabase. Por favor reintentá o revisá los Secrets."
-
-    # Modo Local / Taller
+    # 2. Modo Offline Local (Solo desarrollo cuando Supabase no está configurado)
     db = _load_local_db()
     users = db.setdefault("users", {})
     if clean_email in users:
-        return users[clean_email]["id"], None
+        return None, "Este email ya está registrado. Por favor iniciá sesión."
 
     new_id = f"local_{abs(hash(clean_email)) % 10000000}"
     creditos_ini = DEFAULT_ADMIN_CREDITS if is_admin else 0
     users[clean_email] = {
         "id": new_id,
         "email": clean_email,
-        "password": password,
+        "password": _hash_password(password),
         "creditos": creditos_ini,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     db["users"] = users
     _save_local_db(db)
     return new_id, None
+
 
 
 def get_user_credits(user_id: str, email: Optional[str] = None) -> int:
@@ -250,8 +257,12 @@ def get_user_credits(user_id: str, email: Optional[str] = None) -> int:
 
 def deduct_credits_atomic(user_id: str, cantidad: int, email: Optional[str] = None) -> bool:
     """
-    Descuenta créditos de forma atómica en Supabase o en la base local.
+    Descuenta créditos de forma atómica en Supabase mediante RPC ('descontar_creditos')
+    o en la base local cuando se trabaja en desarrollo offline.
     """
+    if cantidad <= 0:
+        return True
+
     clean_email = email.strip().lower() if email else None
     client = get_supabase()
     if client:
@@ -262,32 +273,12 @@ def deduct_credits_atomic(user_id: str, cantidad: int, email: Optional[str] = No
             }).execute()
             if resp.data is True:
                 return True
-        except Exception:
-            pass
+            return False
+        except Exception as err:
+            print(f"Error en RPC descontar_creditos: {err}")
+            return False
 
-        # Fallback de descuento directo en Supabase por id o email
-        try:
-            reg = None
-            if user_id:
-                q = client.table("perfiles").select("id, creditos").eq("id", user_id).execute()
-                if q.data and len(q.data) > 0:
-                    reg = q.data[0]
-            if not reg and clean_email:
-                q = client.table("perfiles").select("id, creditos").eq("email", clean_email).execute()
-                if q.data and len(q.data) > 0:
-                    reg = q.data[0]
-
-            if reg:
-                actuales = int(reg.get("creditos", 0))
-                if actuales >= cantidad:
-                    nuevos = actuales - cantidad
-                    client.table("perfiles").update({"creditos": nuevos}).eq("id", reg["id"]).execute()
-                    return True
-                return False
-        except Exception:
-            pass
-
-    # Modo Local
+    # Modo Local (Offline)
     db = _load_local_db()
     for em, u in db.get("users", {}).items():
         if (user_id and u.get("id") == user_id) or (clean_email and em.lower() == clean_email):
@@ -453,25 +444,31 @@ def descartar_proyecto_guardado(user_id: str) -> bool:
 PLIEGOS_DIR = "descargas_pliegos"
 
 def guardar_archivo_pliego(user_id: str, pliego_id: str, zip_bytes: bytes) -> str:
-    """Persiste los bytes del pliego en disco organizado y en Supabase Storage si está disponible."""
+    """Persiste los bytes del pliego en disco organizado y en Supabase Storage de manera segura."""
     try:
         if not zip_bytes or not pliego_id:
             return ""
-        clean_pid = str(pliego_id).replace(".zip", "")
+        clean_pid = re.sub(r"[^A-Za-z0-9_-]", "", str(pliego_id).replace(".zip", ""))
+        clean_uid = re.sub(r"[^A-Za-z0-9_-]", "", str(user_id or "general"))
+        if not clean_pid or not clean_uid:
+            return ""
 
-        # 1. Guardar en disco local
-        user_folder = os.path.join(PLIEGOS_DIR, str(user_id or "general"))
+        # 1. Guardar en disco local asegurando contención en el directorio base
+        base_dir = os.path.abspath(PLIEGOS_DIR)
+        user_folder = os.path.abspath(os.path.join(base_dir, clean_uid))
+        if os.path.commonpath([base_dir, user_folder]) != base_dir:
+            return ""
         os.makedirs(user_folder, exist_ok=True)
         file_path = os.path.join(user_folder, f"{clean_pid}.zip")
         with open(file_path, "wb") as f:
             f.write(zip_bytes)
 
-        # 2. Respaldo en Supabase Storage (en la nube para sobrevivir reinicios de Streamlit Cloud)
+        # 2. Respaldo en Supabase Storage bajo el namespace del usuario
         try:
             client = get_supabase()
             if client:
                 client.storage.from_("pliegos").upload(
-                    path=f"{clean_pid}.zip",
+                    path=f"{clean_uid}/{clean_pid}.zip",
                     file=zip_bytes,
                     file_options={"content-type": "application/zip", "upsert": "true"}
                 )
@@ -485,39 +482,35 @@ def guardar_archivo_pliego(user_id: str, pliego_id: str, zip_bytes: bytes) -> st
 
 
 def obtener_archivo_pliego(user_id: str, pliego_id: str) -> Optional[bytes]:
-    """Recupera los bytes del archivo pliego desde el disco o Supabase Storage."""
+    """Recupera los bytes del archivo pliego verificando contención estricta de usuario (Prevención IDOR)."""
     try:
-        if not pliego_id:
+        if not pliego_id or not user_id:
             return None
-        clean_pid = str(pliego_id).replace(".zip", "")
+        clean_pid = re.sub(r"[^A-Za-z0-9_-]", "", str(pliego_id).replace(".zip", ""))
+        clean_uid = re.sub(r"[^A-Za-z0-9_-]", "", str(user_id))
+        if not clean_pid or not clean_uid:
+            return None
 
-        # 1. Búsqueda directa por carpeta de usuario
-        if user_id:
-            user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
+        # 1. Búsqueda directa únicamente dentro de la carpeta del usuario autorizado
+        base_dir = os.path.abspath(PLIEGOS_DIR)
+        user_folder = os.path.abspath(os.path.join(base_dir, clean_uid))
+        if os.path.commonpath([base_dir, user_folder]) == base_dir:
             file_path = os.path.join(user_folder, f"{clean_pid}.zip")
             if os.path.exists(file_path):
                 with open(file_path, "rb") as f:
                     return f.read()
 
-        # 2. Búsqueda recursiva en descargas_pliegos
-        if os.path.exists(PLIEGOS_DIR):
-            for root, _, files in os.walk(PLIEGOS_DIR):
-                if f"{clean_pid}.zip" in files:
-                    with open(os.path.join(root, f"{clean_pid}.zip"), "rb") as f:
-                        return f.read()
-
-        # 3. Descarga desde Supabase Storage (si corre en Streamlit Cloud)
+        # 2. Descarga desde Supabase Storage (restringido a la ruta propia del usuario)
         try:
             client = get_supabase()
             if client:
-                for r_path in [f"{clean_pid}.zip", f"{user_id}/{clean_pid}.zip"]:
+                for r_path in [f"{clean_uid}/{clean_pid}.zip", f"{clean_pid}.zip"]:
                     try:
                         data = client.storage.from_("pliegos").download(r_path)
                         if data:
-                            if user_id:
-                                user_folder = os.path.join(PLIEGOS_DIR, str(user_id))
+                            if os.path.commonpath([base_dir, user_folder]) == base_dir:
                                 os.makedirs(user_folder, exist_ok=True)
-                                with open(os.path.join(user_folder, f"{clean_pid}.zip"), "wb") as f:
+                                with open(file_path, "wb") as f:
                                     f.write(data)
                             return data
                     except Exception:
@@ -691,7 +684,7 @@ def get_user_tutorial_completed(user_id: str) -> bool:
     client = get_supabase()
     if client:
         try:
-            resp = client.table("profiles").select("tutorial_completed").eq("id", user_id).execute()
+            resp = client.table("perfiles").select("tutorial_completed").eq("id", user_id).execute()
             if resp.data and len(resp.data) > 0:
                 return bool(resp.data[0].get("tutorial_completed", False))
         except Exception:
@@ -711,7 +704,7 @@ def set_user_tutorial_completed(user_id: str, completed: bool = True) -> bool:
     client = get_supabase()
     if client:
         try:
-            client.table("profiles").update({"tutorial_completed": completed}).eq("id", user_id).execute()
+            client.table("perfiles").update({"tutorial_completed": completed}).eq("id", user_id).execute()
         except Exception:
             pass
 

@@ -158,26 +158,26 @@ def record_partner_conversion(
 
 def get_partner_stats(code_or_pin: str) -> Optional[Dict[str, Any]]:
     """
-    Obtiene las estadísticas en vivo de una gráfica aliada buscando por código o por PIN.
+    Obtiene las estadísticas en vivo de una gráfica aliada buscando EXCLUSIVAMENTE por su PIN privado.
+    Previene que clientes que tengan el cupón de descuento público puedan ver métricas de facturación.
     """
     clean_search = code_or_pin.strip()
+    if not clean_search:
+        return None
+
     data = _load_partners_data()
     partners = data.get("partners", {})
 
     target_code = None
     target_partner = None
 
-    # Búsqueda directa por código
-    if clean_search.upper() in partners:
-        target_code = clean_search.upper()
-        target_partner = partners[target_code]
-    else:
-        # Búsqueda por PIN de partner
-        for c, p in partners.items():
-            if str(p.get("partner_pin", "")).strip().lower() == clean_search.lower():
-                target_code = c
-                target_partner = p
-                break
+    # Búsqueda estricta por PIN de partner (nunca por código promocional público)
+    for c, p in partners.items():
+        stored_pin = str(p.get("partner_pin", "")).strip()
+        if stored_pin and stored_pin.lower() == clean_search.lower():
+            target_code = c
+            target_partner = p
+            break
 
     if not target_partner or not target_code:
         return None
@@ -218,13 +218,15 @@ def save_or_update_partner(
     if not clean_code or not name.strip():
         return False
 
+    import secrets
     data = _load_partners_data()
+    generated_pin = f"pin_{secrets.token_hex(4)}"
     partner_entry = {
         "code": clean_code,
         "name": name.strip(),
         "discount_pct": float(discount_pct),
         "commission_pct": float(commission_pct),
-        "partner_pin": partner_pin.strip() or f"{clean_code.lower()}2026",
+        "partner_pin": partner_pin.strip() or generated_pin,
         "contact_info": contact_info.strip(),
         "active": bool(active),
         "created_at": datetime.datetime.now().isoformat()

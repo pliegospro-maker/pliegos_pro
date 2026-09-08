@@ -8,8 +8,10 @@ from typing import Tuple, Optional, Dict, Any
 from PIL import Image, ImageFilter
 import numpy as np
 
-# Permite cargar imágenes grandes sin límite restrictivo de Pillow
-Image.MAX_IMAGE_PIXELS = None
+# Protección contra Decompression Bombs (DDoS por memoria RAM / OOM)
+# Límite de 90 Megapíxeles: suficiente para pliegos completos de 58x100cm a 300 DPI (~81 MP),
+# previniendo ataques de descompresión maliciosa que colapsen el servidor por OOM.
+Image.MAX_IMAGE_PIXELS = 90_000_000
 
 
 def get_preview_with_bg(img: Image.Image, bg_hex: str, max_box: Tuple[int, int] = (800, 800)) -> Image.Image:

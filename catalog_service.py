@@ -4,7 +4,10 @@ Organiza y gestiona colecciones de diseños listas para agregar a los pliegos,
 categorizadas por color de prenda (negras, claras, de color).
 """
 
+import io
 import os
+import re
+import uuid
 from typing import List, Dict, Any, Optional, Tuple
 from PIL import Image, ImageDraw, ImageFont
 import streamlit as st
@@ -28,24 +31,23 @@ def _get_or_create_thumb(full_path: str) -> Tuple[Optional[Image.Image], Tuple[i
         try:
             with Image.open(thumb_path) as t_img:
                 thumb = t_img.convert("RGBA")
-            with Image.open(full_path) as raw:
-                orig_size = raw.size
-            return thumb, orig_size
+                w = t_img.info.get("orig_w", thumb.width)
+                h = t_img.info.get("orig_h", thumb.height)
+                return thumb, (w, h)
         except Exception:
             pass
 
-    # Si no existe miniatura, crearla y guardarla en caché de disco
+    if not os.path.exists(full_path):
+        return None, (0, 0)
+
     try:
-        with Image.open(full_path) as raw:
-            orig_size = raw.size
-            img_rgba = raw.convert("RGBA")
-            thumb = img_rgba.copy()
-            thumb.thumbnail((280, 280), Image.Resampling.LANCZOS)
-            try:
-                thumb.save(thumb_path, format="WEBP", quality=85)
-            except Exception:
-                pass
-            return thumb, orig_size
+        with Image.open(full_path) as orig_img:
+            orig_w, orig_h = orig_img.size
+            thumb = orig_img.copy()
+            thumb.thumbnail((260, 260), Image.Resampling.LANCZOS)
+            thumb_rgba = thumb.convert("RGBA")
+            thumb_rgba.save(thumb_path, "WEBP", quality=85)
+            return thumb_rgba, (orig_w, orig_h)
     except Exception:
         return None, (0, 0)
 
@@ -60,14 +62,58 @@ def ensure_catalog_directories():
 
 
 def save_catalog_design(cat_key: str, uploaded_file, subfolder: str = "") -> Optional[str]:
-    """Guarda un archivo subido directamente en la carpeta (o subcarpeta) de la categoría."""
-    clean_sub = subfolder.strip().replace("/", "_").replace("\\", "_")
-    cat_path = os.path.join(CATALOGO_BASE_DIR, cat_key, clean_sub) if clean_sub else os.path.join(CATALOGO_BASE_DIR, cat_key)
-    os.makedirs(cat_path, exist_ok=True)
-    target_file = os.path.join(cat_path, uploaded_file.name)
+    """
+    Guarda un archivo subido de forma segura en la carpeta de la categoría.
+    Protegido contra Path Traversal (C3), extensiones arbitrarias y archivos maliciosos.
+    """
+    if not uploaded_file or not hasattr(uploaded_file, "name"):
+        return None
+
+    # Validar categoría contra lista permitida
+    if cat_key not in CATALOGO_CATEGORIAS:
+        return None
+
+    # 1. Sanitizar extensión
+    raw_name = os.path.basename(str(uploaded_file.name))
+    ext = os.path.splitext(raw_name)[1].lower()
+    allowed_exts = {".png", ".jpg", ".jpeg", ".webp"}
+    if ext not in allowed_exts:
+        return None
+
+    # 2. Generar nombre de archivo seguro
+    stem = re.sub(r'[^A-Za-z0-9_-]', '_', os.path.splitext(raw_name)[0])[:30]
+    safe_filename = f"{stem}_{uuid.uuid4().hex[:8]}{ext}"
+
+    # 3. Sanitizar subcarpeta / colección
+    clean_sub = re.sub(r'[^A-Za-z0-9_-]', '_', subfolder.strip())[:30] if subfolder else ""
+
+    # 4. Asegurar contención de ruta (prevención estricta de Path Traversal)
+    base_abs = os.path.abspath(CATALOGO_BASE_DIR)
+    cat_path = os.path.abspath(os.path.join(base_abs, cat_key, clean_sub) if clean_sub else os.path.join(base_abs, cat_key))
+    target_file = os.path.abspath(os.path.join(cat_path, safe_filename))
+
     try:
+        if os.path.commonpath([base_abs, target_file]) != base_abs:
+            return None
+    except Exception:
+        return None
+
+    # 5. Validar que sea una imagen real y decodificable con Pillow
+    try:
+        file_bytes = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.read()
+        if not file_bytes or len(file_bytes) > 30 * 1024 * 1024:  # Límite 30 MB
+            return None
+        with Image.open(io.BytesIO(file_bytes)) as img_test:
+            img_test.verify()
+    except Exception:
+        return None
+
+    # 6. Escribir archivo validado en disco
+    try:
+        os.makedirs(cat_path, exist_ok=True)
         with open(target_file, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+            f.write(file_bytes)
+
         # Pre-crear miniatura inmediatamente
         _get_or_create_thumb(target_file)
         st.cache_data.clear()
