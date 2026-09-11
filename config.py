@@ -44,7 +44,7 @@ MP_LINK_ESTANDAR_6000 = "https://mpago.li/2fKJWKF"   # Pliego estándar sin desc
 MP_LINK_PROMO_5100 = "https://mpago.li/2cZP9dh"      # Pliego con 15% OFF ($5.100 ARS) - Promo Gráficas Aliadas
 
 # --- URL BASE OFICIAL DE LA APLICACIÓN ---
-DEFAULT_BASE_APP_URL = "https://pliegos-pro.streamlit.app"
+DEFAULT_BASE_APP_URL = "https://pliegospro.streamlit.app"
 
 def get_base_app_url() -> str:
     """Retorna la URL pública oficial de la aplicación, configurable mediante st.secrets."""
